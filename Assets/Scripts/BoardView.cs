@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using DG.Tweening;
 using UnityEngine;
 
 namespace Board
@@ -11,13 +12,14 @@ namespace Board
         [SerializeField] private List<DropItemSO> dropItemSOList;
         [SerializeField] private Transform tilePrefab;
         private Dictionary<DropItemType, Sprite> _dropItemTypeToSpriteDict;
-        private Dictionary<DropItemModel, IDropItemView> _dropItemDictionary;
+        private Transform[,] _dropItems;
         private IBoardView.OnClickAction _onClick;
+        private Action<Vector2> _onDragStarted;
+        private Action<Vector2> _onDragEnded;
 
         private void Start()
         {
             _dropItemTypeToSpriteDict = new Dictionary<DropItemType, Sprite>();
-            _dropItemDictionary = new Dictionary<DropItemModel, IDropItemView>();
             foreach (DropItemSO dropItemSO in dropItemSOList)
             {
                 _dropItemTypeToSpriteDict.Add(dropItemSO.dropItemType, dropItemSO.sprite);
@@ -30,14 +32,29 @@ namespace Board
             {
                 Vector3 worldPosition = mainCamera.ScreenToWorldPoint(Input.mousePosition);
                 Debug.Log("x: " + worldPosition.x + " y: " + worldPosition.y);
-                _onClick.Invoke(worldPosition, out int columnIndex, out int rowIndex);
-                Debug.Log("columnIndex: " + columnIndex + "rowIndex: " + rowIndex);
+                _onDragStarted.Invoke(worldPosition);
+            }
+
+            if (Input.GetMouseButtonUp(0))
+            {
+                Vector3 worldPosition = mainCamera.ScreenToWorldPoint(Input.mousePosition);
+                _onDragEnded.Invoke(worldPosition);
             }
         }
 
         public void SetOnClick(IBoardView.OnClickAction onClick)
         {
             _onClick = onClick;
+        }
+
+        public void SetOnDragStarted(Action<Vector2> onDragStarted)
+        {
+            _onDragStarted = onDragStarted;
+        }
+
+        public void SetOnDragEnded(Action<Vector2> onDragEnded)
+        {
+            _onDragEnded = onDragEnded;
         }
 
         public Camera GetCamera()
@@ -50,29 +67,44 @@ namespace Board
             mainCamera.transform.position = new Vector3(cameraPosition.x, cameraPosition.y, mainCamera.transform.position.z);
         }
         
-        public void SetDropItemViews(DropItemModel[,] dropItemModelList)
+        public void SetDropItemViews(CellModel[,] cellModelList)
         {
-            int columnCount = dropItemModelList.GetLength(0);
-            int rowCount = dropItemModelList.GetLength(1);
+            int columnCount = cellModelList.GetLength(0);
+            int rowCount = cellModelList.GetLength(1);
             dropItemPool.CreatePooledObjects(columnCount, rowCount);
-
+            _dropItems = new Transform[columnCount, rowCount];
             for (int i = 0; i < columnCount; i++)
             {
                 for (int j = 0; j < rowCount; j++)
                 {
-                    Transform tileTransform = Instantiate(tilePrefab, dropItemModelList[i, j].position, Quaternion.identity);
+                    Transform tileTransform = Instantiate(tilePrefab, cellModelList[i, j].position, Quaternion.identity);
                     tileTransform.SetParent(transform);
-                    tileTransform.transform.localScale = dropItemModelList[i, j].localScale;
+                    tileTransform.transform.localScale = cellModelList[i, j].localScale;
                     Transform dropItemTransform = dropItemPool.GetObjectFromPool();
                     dropItemTransform.SetParent(transform);
-                    dropItemTransform.position = dropItemModelList[i, j].position;
+                    dropItemTransform.position = cellModelList[i, j].position;
                     dropItemTransform.GetComponent<SpriteRenderer>().sprite =
-                        _dropItemTypeToSpriteDict[dropItemModelList[i, j].dropItemType];
-                    dropItemTransform.transform.localScale = dropItemModelList[i, j].localScale;
-                    IDropItemView dropItemView = new DropItemView(dropItemTransform, dropItemModelList[i, j]);
-                    _dropItemDictionary.Add(dropItemModelList[i,j], dropItemView);
+                        _dropItemTypeToSpriteDict[cellModelList[i, j].dropItemType];
+                    dropItemTransform.transform.localScale = cellModelList[i, j].localScale;
+                    _dropItems[i, j] = dropItemTransform;
                 }
             }
+        }
+
+        public void SwapDropItems(CellModel firstCellModel, CellModel secondCellModel)
+        {
+            Transform firstDropItem = _dropItems[firstCellModel.columnIndex, firstCellModel.rowIndex];
+            Transform secondDropItem = _dropItems[secondCellModel.columnIndex, secondCellModel.rowIndex];
+            DOTween.Sequence().Append(firstDropItem.DOMove(secondCellModel.position, 0.5f));
+            DOTween.Sequence().Append(secondDropItem.DOMove(firstCellModel.position, 0.5f));
+
+            _dropItems[secondCellModel.columnIndex, secondCellModel.rowIndex] = firstDropItem;
+            _dropItems[firstCellModel.columnIndex, firstCellModel.rowIndex] = secondDropItem;
+        }
+
+        public void ExplodeDropItem(int columnIndex, int rowIndex)
+        {
+            dropItemPool.ReturnObjectToPool(_dropItems[columnIndex, rowIndex]);
         }
         
         public Vector2 GetOriginalSizeOfSprites()
@@ -88,7 +120,7 @@ namespace Board
         void SetOnClick(OnClickAction onClick);
         Camera GetCamera();
         void SetCameraPosition(Vector2 cameraPosition);
-        void SetDropItemViews(DropItemModel[,] dropItemModelList);
+        void SetDropItemViews(CellModel[,] cellModelList);
         Vector2 GetOriginalSizeOfSprites();
     }
 
