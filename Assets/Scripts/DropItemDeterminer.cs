@@ -16,14 +16,14 @@ namespace Board
             {
                 for (int j = 0; j < rowCount; j++)
                 {
-                    SetRandomRandomItemType(i, j);
+                    SetNonMatchedRandomDropItemType(i, j);
                 }
             }
 
             return _dropItemTypeList;
         }
 
-        private void SetRandomRandomItemType(int columnIndex, int rowIndex)
+        private void SetNonMatchedRandomDropItemType(int columnIndex, int rowIndex)
         {
             List<DropItemType> dropItemTypes = Enum.GetValues(typeof(DropItemType))
                 .Cast<DropItemType>()
@@ -48,11 +48,27 @@ namespace Board
             int randomIndex = _rand.Next(0, dropItemTypes.Count);
             _dropItemTypeList[columnIndex, rowIndex] = dropItemTypes[randomIndex];
         }
+
+        public DropItemType[] GenerateRandomDropItemTypeList(int count)
+        {
+            List<DropItemType> allDropItemTypes = Enum.GetValues(typeof(DropItemType))
+                .Cast<DropItemType>()
+                .ToList();
+            DropItemType[] randomDropItemTypes = new DropItemType[count];
+            for (int i = 0; i < count; i++)
+            {
+                int randomIndex = _rand.Next(0, allDropItemTypes.Count);
+                randomDropItemTypes[i] = (DropItemType)randomIndex;
+            }
+
+            return randomDropItemTypes;
+        }
     }
 
     public interface IDropItemDeterminer
     {
         DropItemType[,] GetInitialDropItemTypes(int columnCount, int rowCount);
+        DropItemType[] GenerateRandomDropItemTypeList(int count);
     }
 
     public enum DropItemType

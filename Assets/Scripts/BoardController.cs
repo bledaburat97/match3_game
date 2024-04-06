@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Experimental.GlobalIllumination;
 
 namespace Board
 {
@@ -15,6 +16,7 @@ namespace Board
         private int _dragStartedColumnIndex;
         private int _dragStartedRowIndex;
         private MatchManager _matchManager;
+        private float spawnedDropItemVerticalPosition = 10f;
         
         public BoardController(BoardView view)
         {
@@ -110,31 +112,70 @@ namespace Board
             if (CanSwap(_dragStartedColumnIndex, _dragStartedRowIndex, columnIndex, rowIndex))
             {
                 Swap(_dragStartedColumnIndex, _dragStartedRowIndex, columnIndex, rowIndex);
-                _view.SwapDropItems(_cellModelList[_dragStartedColumnIndex, _dragStartedRowIndex],
-                    _cellModelList[columnIndex, rowIndex]);
                 _matchManager.InitMatchedCellList();
                 List<CellModel> explodingCellModelList =
                     GetMatchedCellModelsAtIndex(_dragStartedColumnIndex, _dragStartedRowIndex);
-                if (explodingCellModelList != null)
-                {
-                    foreach (CellModel cellModel in explodingCellModelList)
-                    {
-                        _view.ExplodeDropItem(cellModel.columnIndex, cellModel.rowIndex);
-                        cellModel.hasDropItem = false;
-                    }
-                }
                 List<CellModel> secondExplodingCellModelList = GetMatchedCellModelsAtIndex(columnIndex, rowIndex);
-                if (secondExplodingCellModelList != null)
+                _view.SwapDropItems(_cellModelList[_dragStartedColumnIndex, _dragStartedRowIndex],
+                    _cellModelList[columnIndex, rowIndex], () => OnSwapCompleted(explodingCellModelList, secondExplodingCellModelList));
+            }
+        }
+
+        private void OnSwapCompleted(List<CellModel> explodingCellModelList, List<CellModel> secondExplodingCellModelList)
+        {
+            if (explodingCellModelList != null)
+            {
+                foreach (CellModel cellModel in explodingCellModelList)
                 {
-                    foreach (CellModel cellModel in secondExplodingCellModelList)
-                    {
-                        _view.ExplodeDropItem(cellModel.columnIndex, cellModel.rowIndex);
-                        cellModel.hasDropItem = false;
-                    }
-                    
+                    cellModel.hasDropItem = false;
+                    _view.ExplodeDropItem(cellModel.columnIndex, cellModel.rowIndex);
+                }
+            }
+            if (secondExplodingCellModelList != null)
+            {
+                foreach (CellModel cellModel in secondExplodingCellModelList)
+                {
+                    cellModel.hasDropItem = false;
+                    _view.ExplodeDropItem(cellModel.columnIndex, cellModel.rowIndex);
                 }
             }
 
+            FillingDropItemDeterminer fillingDropItemDeterminer =
+                new FillingDropItemDeterminer(_columnCount, _rowCount, GetCellModel);
+            Dictionary<CellModel, int> targetRowIndexOfFillingDropItems =
+                fillingDropItemDeterminer.GetTargetRowIndexOfFillingDropItems(out int[] emptyCellCountInEachColumn);
+            foreach (KeyValuePair<CellModel, int> pair in targetRowIndexOfFillingDropItems)
+            {
+                Fill(pair.Key, pair.Value);
+                _view.FillDropItem(pair.Key, GetCellModel(pair.Key.columnIndex, pair.Value));
+            }
+
+            SpawnNewDropItems(emptyCellCountInEachColumn);
+
+        }
+        
+        private void SpawnNewDropItems(int[] emptyCellCountInEachColumn)
+        {
+            int totalEmptyCellCount = 0;
+            foreach (int matchedPieceCount in emptyCellCountInEachColumn)
+            {
+                totalEmptyCellCount += matchedPieceCount;
+            }
+            DropItemType[] randomDropItemTypeList = _dropItemDeterminer.GenerateRandomDropItemTypeList(totalEmptyCellCount);
+            
+
+            int dropItemIndex = 0;
+            for (int i = 0; i < _columnCount; i++)
+            {
+                for (int j = 0; j < emptyCellCountInEachColumn[i]; j++)
+                {
+                    CellModel cellModel = GetCellModel(i, _rowCount - emptyCellCountInEachColumn[i] + j);
+                    Fall(cellModel, randomDropItemTypeList[dropItemIndex]);
+                    float initialVerticalPosition = spawnedDropItemVerticalPosition + _cellSize * j;
+                    _view.FallNewDropItemView(cellModel, initialVerticalPosition);
+                    dropItemIndex++;
+                }
+            }
         }
 
         private bool CanSwap(int firstColumnIndex, int firstRowIndex, int secondColumnIndex, int secondRowIndex)
@@ -166,6 +207,38 @@ namespace Board
             _cellModelList[secondColumnIndex, secondRowIndex].dropItemType = firstDropItemType;
         }
 
+        private void Fill(CellModel cellModel, int targetRowIndex)
+        {
+            CellModel newCellModel = GetCellModel(cellModel.columnIndex, targetRowIndex);
+            if (!cellModel.hasDropItem)
+            {
+                Debug.LogError("There is not filling object in the cell");
+            }
+            
+            if (newCellModel.hasDropItem)
+            {
+                Debug.LogError("Target cell is not empty.");
+                return;
+            }
+            
+            DropItemType dropItemType = cellModel.dropItemType;
+            newCellModel.dropItemType = dropItemType;
+            cellModel.hasDropItem = false;
+            newCellModel.hasDropItem = true;
+        }
+
+        private void Fall(CellModel cellModel, DropItemType dropItemType)
+        {
+            if (cellModel.hasDropItem)
+            {
+                Debug.LogError("Target cell is not empty.");
+                return;
+            }
+
+            cellModel.dropItemType = dropItemType;
+            cellModel.hasDropItem = true;
+        }
+
         private bool IsMatched(int columnIndex, int rowIndex)
         {
             List<CellModel> verticallyMatchedCellModels = _matchManager.CheckVerticalMatch(columnIndex, rowIndex, _cellModelList);
@@ -192,6 +265,11 @@ namespace Board
                 }
             }
             return horizontallyMatchedCellModels;
+        }
+
+        private CellModel GetCellModel(int columnIndex, int rowIndex)
+        {
+            return _cellModelList[columnIndex, rowIndex];
         }
     }
 
