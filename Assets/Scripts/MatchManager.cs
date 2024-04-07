@@ -7,20 +7,6 @@ namespace Board
         private int _columnCount = 8;
         private int _rowCount = 8;
 
-        private bool[,] _alreadyMatchedCellList;
-
-        public void InitMatchedCellList()
-        {
-            _alreadyMatchedCellList = new bool[_columnCount, _rowCount];
-            for (int i = 0; i < _columnCount; i++)
-            {
-                for (int j = 0; j < _rowCount; j++)
-                {
-                    _alreadyMatchedCellList[i, j] = false;
-                }
-            }
-        }
-
         public List<CellModel> CheckHorizontalMatch(int columnIndex, int rowIndex, CellModel[,] cellModels, out List<CellModel> intersectedCellModels)
         {
             List<CellModel> matchedCellModels = new List<CellModel>();
@@ -34,7 +20,7 @@ namespace Board
             {
                 if (IsValidPosition(columnIndex - i, rowIndex))
                 {
-                    if (cellModels[columnIndex - i, rowIndex].hasDropItem &&
+                    if (cellModels[columnIndex - i, rowIndex].hasPlacedDropItem &&
                         cellModels[columnIndex - i, rowIndex].dropItemType == dropItemType)
                     {
                         leftLinkAmount++;
@@ -54,7 +40,7 @@ namespace Board
             {
                 if (IsValidPosition(columnIndex + i, rowIndex))
                 {
-                    if (cellModels[columnIndex + i, rowIndex].hasDropItem &&
+                    if (cellModels[columnIndex + i, rowIndex].hasPlacedDropItem &&
                         cellModels[columnIndex + i, rowIndex].dropItemType == dropItemType)
                     {
                         rightLinkAmount++;
@@ -75,12 +61,7 @@ namespace Board
             {
                 int leftMostColumnIndex = columnIndex - leftLinkAmount;
                 for (int i = 0; i < horizontalLinkAmount; i++) {
-                    if (_alreadyMatchedCellList[leftMostColumnIndex + i, rowIndex])
-                    {
-                        intersectedCellModels.Add(cellModels[leftMostColumnIndex + i, rowIndex]);
-                    }
                     matchedCellModels.Add(cellModels[leftMostColumnIndex + i, rowIndex]);
-                    _alreadyMatchedCellList[leftMostColumnIndex + i, rowIndex] = true;
                 }
                 
                 return matchedCellModels;
@@ -101,7 +82,7 @@ namespace Board
             {
                 if (IsValidPosition(columnIndex, rowIndex - i))
                 {
-                    if (cellModels[columnIndex, rowIndex - i].hasDropItem &&
+                    if (cellModels[columnIndex, rowIndex - i].hasPlacedDropItem &&
                         cellModels[columnIndex, rowIndex - i].dropItemType == dropItemType)
                     {
                         downLinkAmount++;
@@ -121,7 +102,7 @@ namespace Board
             {
                 if (IsValidPosition(columnIndex, rowIndex + i))
                 {
-                    if (cellModels[columnIndex, rowIndex + i].hasDropItem &&
+                    if (cellModels[columnIndex, rowIndex + i].hasPlacedDropItem &&
                         cellModels[columnIndex, rowIndex + i].dropItemType == dropItemType)
                     {
                         upLinkAmount++;
@@ -141,19 +122,11 @@ namespace Board
             if (verticalLinkAmount >= 3) 
             {
                 int downMostRowIndex = rowIndex - downLinkAmount;
-                int alreadyMatchedCellCount = 0;
                 for (int i = 0; i < verticalLinkAmount; i++) {
-                    if (_alreadyMatchedCellList[columnIndex, downMostRowIndex + i])
-                    {
-                        alreadyMatchedCellCount++;
-                    }
                     matchedCellModels.Add(cellModels[columnIndex, downMostRowIndex + i]);
-                    _alreadyMatchedCellList[columnIndex, downMostRowIndex + i] = true;
                 }
-                if (alreadyMatchedCellCount < verticalLinkAmount)
-                {
-                    return matchedCellModels;
-                }
+
+                return matchedCellModels;
             }
 
             return null;

@@ -25,13 +25,13 @@ namespace Board
                 for (int j = 0; j < _rowCount; j++)
                 {
                     CellModel cellModel = _getCellModel(i,j);
-                    if (!cellModel.hasDropItem) emptyCellCountInEachColumn[i]++;
+                    if (!cellModel.hasAssignedDropItem) emptyCellCountInEachColumn[i]++;
                     else
                     {
                         int count = 0;
                         for (int k = j - 1; k >= 0; k--)
                         {
-                            if (!_getCellModel(i, k).hasDropItem) 
+                            if (!_getCellModel(i, k).hasAssignedDropItem) 
                             {
                                 count++;
                             }

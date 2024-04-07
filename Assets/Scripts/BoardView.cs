@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using DG.Tweening;
 using UnityEngine;
 
 namespace Board
@@ -12,8 +11,7 @@ namespace Board
         [SerializeField] private List<DropItemSO> dropItemSOList;
         [SerializeField] private Transform tilePrefab;
         private Dictionary<DropItemType, Sprite> _dropItemTypeToSpriteDict;
-        private Transform[,] _dropItems;
-        private IBoardView.OnClickAction _onClick;
+        private IDropItemView[,] _dropItems;
         private Action<Vector2> _onDragStarted;
         private Action<Vector2> _onDragEnded;
 
@@ -42,11 +40,6 @@ namespace Board
             }
         }
 
-        public void SetOnClick(IBoardView.OnClickAction onClick)
-        {
-            _onClick = onClick;
-        }
-
         public void SetOnDragStarted(Action<Vector2> onDragStarted)
         {
             _onDragStarted = onDragStarted;
@@ -71,8 +64,8 @@ namespace Board
         {
             int columnCount = cellModelList.GetLength(0);
             int rowCount = cellModelList.GetLength(1);
-            dropItemPool.CreatePooledObjects(columnCount, rowCount);
-            _dropItems = new Transform[columnCount, rowCount];
+            dropItemPool.CreateDropItemPool(columnCount, rowCount);
+            _dropItems = new IDropItemView[columnCount, rowCount];
             for (int i = 0; i < columnCount; i++)
             {
                 for (int j = 0; j < rowCount; j++)
@@ -81,63 +74,64 @@ namespace Board
                     Transform tileTransform = Instantiate(tilePrefab, cellModel.position, Quaternion.identity);
                     tileTransform.SetParent(transform);
                     tileTransform.transform.localScale = cellModel.localScale;
-                    _dropItems[i, j] = SpawnDropItemTransform(cellModel.position, cellModel.localScale, cellModel.dropItemType);
+                    _dropItems[i, j] = SpawnDropItem(cellModel.position, cellModel);
                 }
             }
         }
 
-        public Sequence FallNewDropItemView(CellModel cellModel, float initialVerticalPosition)
+        public void FallNewDropItem(CellModel cellModel, float initialVerticalPosition)
         {
             Vector2 initialPosition = new Vector2(cellModel.position.x, initialVerticalPosition);
-            Transform dropItemTransform = SpawnDropItemTransform(initialPosition, cellModel.localScale, cellModel.dropItemType);
+            IDropItemView dropItem = SpawnDropItem(initialPosition, cellModel);
             if (_dropItems[cellModel.columnIndex, cellModel.rowIndex] != null)
             {
                 Debug.LogError("Target cell has drop item view.");
-                return DOTween.Sequence();
             }
-            _dropItems[cellModel.columnIndex, cellModel.rowIndex] = dropItemTransform;
-            return DOTween.Sequence().Append(dropItemTransform.DOMove(cellModel.position,
-                (initialVerticalPosition - cellModel.position.y) * 1f)).Pause();
+            _dropItems[cellModel.columnIndex, cellModel.rowIndex] = dropItem;
+            dropItem.UpdateTargetVerticalPosition(cellModel.position);
+            dropItem.SetIndex(cellModel.columnIndex, cellModel.rowIndex);
         }
 
-        private Transform SpawnDropItemTransform(Vector2 initialPosition, Vector2 localScale, DropItemType dropItemType)
+        private IDropItemView SpawnDropItem(Vector2 initialPosition, CellModel cellModel)
         {
-            Transform dropItemTransform = dropItemPool.GetObjectFromPool();
-            dropItemTransform.SetParent(transform);
-            dropItemTransform.position = initialPosition;
-            dropItemTransform.GetComponent<SpriteRenderer>().sprite =
-                _dropItemTypeToSpriteDict[dropItemType];
-            dropItemTransform.transform.localScale = localScale;
-            return dropItemTransform;
+            IDropItemView dropItem = dropItemPool.GetDropItemFromPool();
+            dropItem.SetParent(transform);
+            dropItem.SetPosition(initialPosition);
+            dropItem.SetDropItemSprite(_dropItemTypeToSpriteDict[cellModel.dropItemType]);
+            dropItem.SetLocalScale(cellModel.localScale);
+            dropItem.SetOnMoveCompletedAction(cellModel.onMoveCompleted);
+            dropItem.SetIndex(cellModel.columnIndex, cellModel.rowIndex);
+            return dropItem;
         }
 
-        public void SwapDropItems(CellModel firstCellModel, CellModel secondCellModel, Action onComplete)
+        public void SwapDropItems(CellModel firstCellModel, CellModel secondCellModel)
         {
-            Transform firstDropItem = _dropItems[firstCellModel.columnIndex, firstCellModel.rowIndex];
-            Transform secondDropItem = _dropItems[secondCellModel.columnIndex, secondCellModel.rowIndex];
+            IDropItemView firstDropItem = _dropItems[firstCellModel.columnIndex, firstCellModel.rowIndex];
+            IDropItemView secondDropItem = _dropItems[secondCellModel.columnIndex, secondCellModel.rowIndex];
             _dropItems[secondCellModel.columnIndex, secondCellModel.rowIndex] = firstDropItem;
             _dropItems[firstCellModel.columnIndex, firstCellModel.rowIndex] = secondDropItem;
-            DOTween.Sequence().Append(firstDropItem.DOMove(secondCellModel.position, 0.5f))
-                .Join(secondDropItem.DOMove(firstCellModel.position, 0.5f))
-                .OnComplete(onComplete.Invoke);
+            firstDropItem.UpdateTargetVerticalPosition(secondCellModel.position);
+            firstDropItem.SetIndex(secondCellModel.columnIndex, secondCellModel.rowIndex);
+            secondDropItem.UpdateTargetVerticalPosition(firstCellModel.position);
+            secondDropItem.SetIndex(firstCellModel.columnIndex, firstCellModel.rowIndex);
         }
 
         public void FillDropItem(CellModel previousCellModel, CellModel newCellModel)
         {
-            Transform dropItem = _dropItems[previousCellModel.columnIndex, previousCellModel.rowIndex];
+            IDropItemView dropItem = _dropItems[previousCellModel.columnIndex, previousCellModel.rowIndex];
             if (_dropItems[newCellModel.columnIndex, newCellModel.rowIndex] != null)
             {
                 Debug.LogError("The cell to be filled is not empty.");
             }
             _dropItems[newCellModel.columnIndex, newCellModel.rowIndex] = dropItem;
             _dropItems[previousCellModel.columnIndex, previousCellModel.rowIndex] = null;
-            DOTween.Sequence().Append(dropItem.DOMove(newCellModel.position,
-                (previousCellModel.position.y - newCellModel.position.y) * 1f));
+            dropItem.UpdateTargetVerticalPosition(newCellModel.position);
+            dropItem.SetIndex(newCellModel.columnIndex, newCellModel.rowIndex);
         }
 
         public void ExplodeDropItem(int columnIndex, int rowIndex)
         {
-            dropItemPool.ReturnObjectToPool(_dropItems[columnIndex, rowIndex]);
+            dropItemPool.ReturnDropItemToPool(_dropItems[columnIndex, rowIndex]);
             _dropItems[columnIndex, rowIndex] = null;
         }
         
@@ -149,15 +143,16 @@ namespace Board
 
     public interface IBoardView
     {
-        delegate void OnClickAction(in Vector2 position, out int columnIndex, out int rowIndex);
-
-        void SetOnClick(OnClickAction onClick);
         Camera GetCamera();
         void SetCameraPosition(Vector2 cameraPosition);
         void SetDropItemViews(CellModel[,] cellModelList);
         Vector2 GetOriginalSizeOfSprites();
-        void SwapDropItems(CellModel firstCellModel, CellModel secondCellModel, Action onComplete);
+        void SwapDropItems(CellModel firstCellModel, CellModel secondCellModel);
         void FillDropItem(CellModel previousCellModel, CellModel newCellModel);
+        void FallNewDropItem(CellModel cellModel, float initialVerticalPosition);
+        void SetOnDragStarted(Action<Vector2> onDragStarted);
+        void SetOnDragEnded(Action<Vector2> onDragEnded);
+        void ExplodeDropItem(int columnIndex, int rowIndex);
     }
 
 }

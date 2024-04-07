@@ -5,26 +5,26 @@ namespace Board
 {
     public class DropItemPool : MonoBehaviour, IDropItemPool
     {
-        [SerializeField] private Transform dropPrefab;
-        private Queue<Transform> _pooledObjects= new Queue<Transform>();
+        [SerializeField] private DropItemView dropItemPrefab;
+        private Queue<IDropItemView> _pooledDropItems= new Queue<IDropItemView>();
 
-        public void CreatePooledObjects(int columnCount, int rowCount)
+        public void CreateDropItemPool(int columnCount, int rowCount)
         {
             for (int i = 0; i < columnCount * rowCount; i++)
             {
-                Transform dropTransform = Instantiate(dropPrefab, transform);
-                dropTransform.gameObject.SetActive(false);
-                _pooledObjects.Enqueue(dropTransform);
+                IDropItemView dropItem = Instantiate(dropItemPrefab, transform);
+                dropItem.SetActive(false);
+                _pooledDropItems.Enqueue(dropItem);
             }
         }
         
-        public Transform GetObjectFromPool()
+        public IDropItemView GetDropItemFromPool()
         {
-            if (_pooledObjects.Count > 0)
+            if (_pooledDropItems.Count > 0)
             {
-                Transform dropTransform = _pooledObjects.Dequeue();
-                dropTransform.gameObject.SetActive(true);
-                return dropTransform;
+                IDropItemView dropItem = _pooledDropItems.Dequeue();
+                dropItem.SetActive(true);
+                return dropItem;
             }
             else
             {
@@ -33,18 +33,18 @@ namespace Board
             }
         }
 
-        public void ReturnObjectToPool(Transform dropTransform)
+        public void ReturnDropItemToPool(IDropItemView dropItem)
         {
-            dropTransform.gameObject.SetActive(false);
-            _pooledObjects.Enqueue(dropTransform);
+            dropItem.SetActive(false);
+            _pooledDropItems.Enqueue(dropItem);
         }
     }
 
     public interface IDropItemPool
     {
-        void CreatePooledObjects(int columnCount, int rowCount);
-        Transform GetObjectFromPool();
-        void ReturnObjectToPool(Transform dropTransform);
+        void CreateDropItemPool(int columnCount, int rowCount);
+        IDropItemView GetDropItemFromPool();
+        void ReturnDropItemToPool(IDropItemView dropItem);
     }
 }
 

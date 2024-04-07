@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System;
+using UnityEngine;
 
 namespace Board
 {
@@ -9,6 +10,8 @@ namespace Board
         public int rowIndex { get; set; }
         public Vector2 position { get; set; }
         public Vector2 localScale { get; set; }
-        public bool hasDropItem { get; set; }
+        public bool hasAssignedDropItem { get; set; }
+        public bool hasPlacedDropItem { get; set; }
+        public Action<int, int> onMoveCompleted { get; set; }
     }
 }
