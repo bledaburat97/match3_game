@@ -21,12 +21,12 @@ namespace Board
             }
         }
 
-        public List<CellModel> CheckHorizontalMatch(int columnIndex, int rowIndex, CellModel[,] cellModels, out bool isSeparateMatch)
+        public List<CellModel> CheckHorizontalMatch(int columnIndex, int rowIndex, CellModel[,] cellModels, out List<CellModel> intersectedCellModels)
         {
             List<CellModel> matchedCellModels = new List<CellModel>();
             CellModel swappedCellModel = cellModels[columnIndex, rowIndex];
             DropItemType dropItemType = swappedCellModel.dropItemType;
-            isSeparateMatch = true;
+            intersectedCellModels = new List<CellModel>();
             int rightLinkAmount = 0;
             int leftLinkAmount = 0;
 
@@ -74,27 +74,16 @@ namespace Board
             if (horizontalLinkAmount >= 3) 
             {
                 int leftMostColumnIndex = columnIndex - leftLinkAmount;
-                int alreadyMatchedCellCount = 0;
                 for (int i = 0; i < horizontalLinkAmount; i++) {
                     if (_alreadyMatchedCellList[leftMostColumnIndex + i, rowIndex])
                     {
-                        alreadyMatchedCellCount++;
+                        intersectedCellModels.Add(cellModels[leftMostColumnIndex + i, rowIndex]);
                     }
                     matchedCellModels.Add(cellModels[leftMostColumnIndex + i, rowIndex]);
                     _alreadyMatchedCellList[leftMostColumnIndex + i, rowIndex] = true;
                 }
-
-                if (alreadyMatchedCellCount == 0)
-                {
-                    isSeparateMatch = true;
-                    return matchedCellModels;
-                }
-                    
-                else if (alreadyMatchedCellCount < horizontalLinkAmount)
-                {
-                    isSeparateMatch = false;
-                    return matchedCellModels;
-                }
+                
+                return matchedCellModels;
             }
 
             return null;

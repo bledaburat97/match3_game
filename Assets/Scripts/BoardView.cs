@@ -86,18 +86,18 @@ namespace Board
             }
         }
 
-        public void FallNewDropItemView(CellModel cellModel, float initialVerticalPosition)
+        public Sequence FallNewDropItemView(CellModel cellModel, float initialVerticalPosition)
         {
             Vector2 initialPosition = new Vector2(cellModel.position.x, initialVerticalPosition);
             Transform dropItemTransform = SpawnDropItemTransform(initialPosition, cellModel.localScale, cellModel.dropItemType);
             if (_dropItems[cellModel.columnIndex, cellModel.rowIndex] != null)
             {
                 Debug.LogError("Target cell has drop item view.");
-                return;
+                return DOTween.Sequence();
             }
             _dropItems[cellModel.columnIndex, cellModel.rowIndex] = dropItemTransform;
-            DOTween.Sequence().Append(dropItemTransform.DOMove(cellModel.position,
-                (initialVerticalPosition - cellModel.position.y) * 1f));
+            return DOTween.Sequence().Append(dropItemTransform.DOMove(cellModel.position,
+                (initialVerticalPosition - cellModel.position.y) * 1f)).Pause();
         }
 
         private Transform SpawnDropItemTransform(Vector2 initialPosition, Vector2 localScale, DropItemType dropItemType)

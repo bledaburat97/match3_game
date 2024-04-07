@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
+using DG.Tweening;
 using UnityEngine;
-using UnityEngine.Experimental.GlobalIllumination;
 
 namespace Board
 {
@@ -16,7 +16,8 @@ namespace Board
         private int _dragStartedColumnIndex;
         private int _dragStartedRowIndex;
         private MatchManager _matchManager;
-        private float spawnedDropItemVerticalPosition = 10f;
+        private float spawnedDropItemVerticalPosition = 7f;
+        private FillingDropItemDeterminer _fillingDropItemDeterminer;
         
         public BoardController(BoardView view)
         {
@@ -42,6 +43,7 @@ namespace Board
             _view.SetOnDragEnded(OnDragEnded);
             _view.SetDropItemViews(_cellModelList);
             _matchManager = new MatchManager();
+            _fillingDropItemDeterminer = new FillingDropItemDeterminer(_columnCount, _rowCount, GetCellModel);
         }
 
         private void SetCellModelList()
@@ -113,37 +115,46 @@ namespace Board
             {
                 Swap(_dragStartedColumnIndex, _dragStartedRowIndex, columnIndex, rowIndex);
                 _matchManager.InitMatchedCellList();
-                List<CellModel> explodingCellModelList =
-                    GetMatchedCellModelsAtIndex(_dragStartedColumnIndex, _dragStartedRowIndex);
+                List<CellModel> explodingCellModelList = GetMatchedCellModelsAtIndex(_dragStartedColumnIndex, _dragStartedRowIndex);
                 List<CellModel> secondExplodingCellModelList = GetMatchedCellModelsAtIndex(columnIndex, rowIndex);
+                List<List<CellModel>> allMatchedCellModelLists = new List<List<CellModel>>();
+                if (explodingCellModelList != null)
+                {
+                    foreach (CellModel cellModel in explodingCellModelList)
+                    {
+                        cellModel.hasDropItem = false;
+                    }
+                    allMatchedCellModelLists.Add(explodingCellModelList);
+                }
+                
+                if (secondExplodingCellModelList != null)
+                {
+                    foreach (CellModel cellModel in secondExplodingCellModelList)
+                    {
+                        cellModel.hasDropItem = false;
+                    }
+                    allMatchedCellModelLists.Add(secondExplodingCellModelList);
+                }
+                
+
+                Dictionary<CellModel, int> targetRowIndexOfFillingDropItems =
+                    _fillingDropItemDeterminer.GetTargetRowIndexOfFillingDropItems(out int[] emptyCellCountInEachColumn);
+                
                 _view.SwapDropItems(_cellModelList[_dragStartedColumnIndex, _dragStartedRowIndex],
-                    _cellModelList[columnIndex, rowIndex], () => OnSwapCompleted(explodingCellModelList, secondExplodingCellModelList));
+                    _cellModelList[columnIndex, rowIndex], () => OnAllMatchesDetermined(allMatchedCellModelLists, targetRowIndexOfFillingDropItems, emptyCellCountInEachColumn));
             }
         }
 
-        private void OnSwapCompleted(List<CellModel> explodingCellModelList, List<CellModel> secondExplodingCellModelList)
+        private void OnAllMatchesDetermined(List<List<CellModel>> allMatchedCellModelLists, Dictionary<CellModel, int> targetRowIndexOfFillingDropItems, int[] emptyCellCountInEachColumn)
         {
-            if (explodingCellModelList != null)
+            foreach (List<CellModel> cellModelList in allMatchedCellModelLists)
             {
-                foreach (CellModel cellModel in explodingCellModelList)
+                foreach (CellModel cellModel in cellModelList)
                 {
-                    cellModel.hasDropItem = false;
                     _view.ExplodeDropItem(cellModel.columnIndex, cellModel.rowIndex);
                 }
             }
-            if (secondExplodingCellModelList != null)
-            {
-                foreach (CellModel cellModel in secondExplodingCellModelList)
-                {
-                    cellModel.hasDropItem = false;
-                    _view.ExplodeDropItem(cellModel.columnIndex, cellModel.rowIndex);
-                }
-            }
-
-            FillingDropItemDeterminer fillingDropItemDeterminer =
-                new FillingDropItemDeterminer(_columnCount, _rowCount, GetCellModel);
-            Dictionary<CellModel, int> targetRowIndexOfFillingDropItems =
-                fillingDropItemDeterminer.GetTargetRowIndexOfFillingDropItems(out int[] emptyCellCountInEachColumn);
+            
             foreach (KeyValuePair<CellModel, int> pair in targetRowIndexOfFillingDropItems)
             {
                 Fill(pair.Key, pair.Value);
@@ -151,7 +162,6 @@ namespace Board
             }
 
             SpawnNewDropItems(emptyCellCountInEachColumn);
-
         }
         
         private void SpawnNewDropItems(int[] emptyCellCountInEachColumn)
@@ -165,6 +175,7 @@ namespace Board
             
 
             int dropItemIndex = 0;
+            Sequence sequence = DOTween.Sequence();
             for (int i = 0; i < _columnCount; i++)
             {
                 for (int j = 0; j < emptyCellCountInEachColumn[i]; j++)
@@ -172,10 +183,28 @@ namespace Board
                     CellModel cellModel = GetCellModel(i, _rowCount - emptyCellCountInEachColumn[i] + j);
                     Fall(cellModel, randomDropItemTypeList[dropItemIndex]);
                     float initialVerticalPosition = spawnedDropItemVerticalPosition + _cellSize * j;
-                    _view.FallNewDropItemView(cellModel, initialVerticalPosition);
+                    sequence.Join(_view.FallNewDropItemView(cellModel, initialVerticalPosition));
                     dropItemIndex++;
                 }
             }
+
+            sequence.OnComplete(OnAllDropItemsFell).Play();
+        }
+        
+        private void OnAllDropItemsFell()
+        {
+            _matchManager.InitMatchedCellList();
+            List<List<CellModel>> allMatchedCellModels = GetAllMatchedCellModelsOnBoard();
+            if (allMatchedCellModels.Count == 0) return;
+            foreach (List<CellModel> cellModelList in allMatchedCellModels)
+            {
+                foreach (CellModel cellModel in cellModelList)
+                {
+                    cellModel.hasDropItem = false;
+                }
+            }
+            Dictionary<CellModel, int> targetRowIndexOfFillingDropItems = _fillingDropItemDeterminer.GetTargetRowIndexOfFillingDropItems(out int[] emptyCellCountInEachColumn);
+            OnAllMatchesDetermined(allMatchedCellModels, targetRowIndexOfFillingDropItems, emptyCellCountInEachColumn);
         }
 
         private bool CanSwap(int firstColumnIndex, int firstRowIndex, int secondColumnIndex, int secondRowIndex)
@@ -243,14 +272,14 @@ namespace Board
         {
             List<CellModel> verticallyMatchedCellModels = _matchManager.CheckVerticalMatch(columnIndex, rowIndex, _cellModelList);
             List<CellModel> horizontallyMatchedCellModels =
-                _matchManager.CheckHorizontalMatch(columnIndex, rowIndex, _cellModelList, out bool isSeparateMatch);
+                _matchManager.CheckHorizontalMatch(columnIndex, rowIndex, _cellModelList, out List<CellModel> intersectedCellModels);
             return verticallyMatchedCellModels != null || horizontallyMatchedCellModels != null;
         }
 
         private List<CellModel> GetMatchedCellModelsAtIndex(int columnIndex, int rowIndex)
         {
             List<CellModel> verticallyMatchedCellModels = _matchManager.CheckVerticalMatch(columnIndex, rowIndex, _cellModelList);
-            List<CellModel> horizontallyMatchedCellModels = _matchManager.CheckHorizontalMatch(columnIndex, rowIndex, _cellModelList, out bool isSeparateMatch);
+            List<CellModel> horizontallyMatchedCellModels = _matchManager.CheckHorizontalMatch(columnIndex, rowIndex, _cellModelList, out List<CellModel> intersectedCellModels);
             if (verticallyMatchedCellModels != null)
             {
                 if (horizontallyMatchedCellModels != null)
@@ -265,6 +294,76 @@ namespace Board
                 }
             }
             return horizontallyMatchedCellModels;
+        }
+
+
+        private List<List<CellModel>> GetAllMatchedCellModelsOnBoard()
+        {
+            List<List<CellModel>> allMatchedCellModels = new List<List<CellModel>>();
+            for (int i = 0; i < _columnCount; i++)
+            {
+                for (int j = 0; j < _rowCount; j++)
+                {
+                    List<CellModel> verticallyMatchedCellModels = _matchManager.CheckVerticalMatch(i, j, _cellModelList);
+                    if (verticallyMatchedCellModels != null)
+                    {
+                        allMatchedCellModels.Add(verticallyMatchedCellModels);
+                    }
+                }
+            }
+
+            for (int i = 0; i < _columnCount; i++)
+            {
+                for (int j = 0; j < _rowCount; j++)
+                {
+                    List<CellModel> horizontallyMatchedCellModels = _matchManager.CheckHorizontalMatch(i, j, _cellModelList, out List<CellModel> intersectedCellModels);
+                    if (horizontallyMatchedCellModels != null)
+                    {
+                        if (intersectedCellModels.Count == 0)
+                        {
+                            allMatchedCellModels.Add(horizontallyMatchedCellModels);
+                        }
+                        
+                        else if (intersectedCellModels.Count < horizontallyMatchedCellModels.Count)
+                        {
+                            MergeCellModelLists(intersectedCellModels, horizontallyMatchedCellModels);
+                        }
+                    }
+
+                }
+            }
+
+            return allMatchedCellModels;
+
+            void MergeCellModelLists(List<CellModel> intersectedCellModels, List<CellModel> horizontallyMatchedCellModels)
+            {
+                List<List<CellModel>> cellModelListsToBeMerged = new List<List<CellModel>>();
+                foreach (CellModel cellModel in intersectedCellModels)
+                {
+                    for (int i = 0; i < allMatchedCellModels.Count; i++)
+                    {
+                        if (allMatchedCellModels[i].Contains(cellModel))
+                        {
+                            cellModelListsToBeMerged.Add(allMatchedCellModels[i]);
+                        }
+                    }
+                }
+
+                List<CellModel> mergedCellModelList = new List<CellModel>();
+                foreach (List<CellModel> cellModelList in cellModelListsToBeMerged)
+                {
+                    mergedCellModelList.AddRange(cellModelList);
+                    allMatchedCellModels.Remove(cellModelList);
+                }
+
+                foreach (CellModel cellModel in intersectedCellModels)
+                {
+                    mergedCellModelList.Remove(cellModel);
+                }
+                
+                mergedCellModelList.AddRange(horizontallyMatchedCellModels);
+                allMatchedCellModels.Add(mergedCellModelList);
+            }
         }
 
         private CellModel GetCellModel(int columnIndex, int rowIndex)
