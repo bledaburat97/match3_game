@@ -8,7 +8,11 @@ namespace Board
         
         public void Start()
         {
-            IBoardController boardController = new BoardController(boardView);
+            Vector2 originPosition = Vector2.zero;
+            IActiveCellModelsManager activeCellModelsManager = new ActiveCellModelsManager();
+            ISwapManager swapManager = new SwapManager(boardView, activeCellModelsManager, originPosition);
+            IBoardController boardController = new BoardController(boardView, activeCellModelsManager, originPosition, swapManager);
+            
             boardController.InitializeBoard(8,8);
         }
     }

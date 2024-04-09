@@ -12,19 +12,16 @@ namespace Board
         private CellModel[,] _cellModelList;
         private IBoardView _view;
         private Vector2 _originPosition;
-        private int _dragStartedColumnIndex;
-        private int _dragStartedRowIndex;
-        private Vector2 _dragStartedPosition;
         private IMatchManager _matchManager;
         private FillingDropItemDeterminer _fillingDropItemDeterminer;
         private IActiveCellModelsManager _activeCellModelsManager;
-        public BoardController(IBoardView view)
+        private ISwapManager _swapManager;
+        public BoardController(IBoardView view, IActiveCellModelsManager activeCellModelsManager, Vector2 originPosition, ISwapManager swapManager)
         {
             _view = view;
-            _originPosition = Vector2.zero;
-            _dragStartedColumnIndex = -1;
-            _dragStartedRowIndex = -1;
-            _activeCellModelsManager = new ActiveCellModelsManager();
+            _originPosition = originPosition;
+            _activeCellModelsManager = activeCellModelsManager;
+            _swapManager = swapManager;
         }
         
         public void InitializeBoard(int columnCount, int rowCount)
@@ -37,10 +34,9 @@ namespace Board
             _cellSize = boardSize.y / _rowCount;
             SetCellModelList();
             SetCamera();
-            SetActions();
-            _view.SetDropItemViews(_cellModelList);
             _matchManager = new MatchManager(_columnCount, _rowCount, GetCellModel);
             _fillingDropItemDeterminer = new FillingDropItemDeterminer(_columnCount, _rowCount, GetCellModel);
+            _swapManager.Init(_matchManager, _cellSize, GetCellModel);
         }
 
         private void SetCamera()
@@ -49,15 +45,9 @@ namespace Board
             _view.SetCameraPosition(cameraPosition);
         }
 
-        private void SetActions()
-        {
-            _view.SetOnDragStarted(OnDragStarted);
-            _view.SetOnDragEnded(OnDragEnded);
-            _view.SetOnDropItemPlaced(OnMoveCompleted);
-        }
-
         private void SetCellModelList()
         {
+            _view.CreateDropItemPool(_columnCount * _rowCount);
             DropItemType[,] initialDropItemTypeList = _dropItemDeterminer.GetInitialDropItemTypes(_columnCount, _rowCount);
             Vector2 sizeOfSprite = _view.GetOriginalSizeOfSprites();
             Vector2 localScaleOfDropItem = new Vector2(1 / sizeOfSprite.x, 1 / sizeOfSprite.y) * _cellSize;
@@ -65,128 +55,48 @@ namespace Board
             {
                 for (int j = 0; j < _rowCount; j++)
                 {
-                    CellModel cellModel = new CellModel()
-                    {
-                        dropItemType = initialDropItemTypeList[i, j],
-                        columnIndex = i,
-                        rowIndex = j,
-                        localScale = localScaleOfDropItem,
-                        position = new Vector2(i, j) * _cellSize + _originPosition,
-                        hasAssignedDropItem = true,
-                        hasPlacedDropItem = true,
-                    };
+                    Vector2 position = new Vector2(i, j) * _cellSize + _originPosition;
+                    CellModel cellModel = new CellModel(i, j, position, localScaleOfDropItem, OnMoveCompleted);
+                    cellModel.DropItemType = initialDropItemTypeList[i, j];
+                    _view.CreateTile(position, localScaleOfDropItem);
+                    IDropItemView dropItem = _view.GetDropItemFromPool();
+                    dropItem.SetPosition(position);
+                    dropItem.SetDropItemSprite(_view.GetDropItemSprite(cellModel.DropItemType));
+                    cellModel.SetDropItem(dropItem);
+                    cellModel.HasPlacedDropItem = true;
                     _cellModelList[i, j] = cellModel;
                 }
             }
         }
-
-        private void OnDragStarted(Vector2 worldPosition)
-        {
-            _dragStartedColumnIndex = Mathf.FloorToInt(((worldPosition - _originPosition).x + _cellSize / 2) / _cellSize);
-            _dragStartedRowIndex = Mathf.FloorToInt(((worldPosition - _originPosition).y + _cellSize / 2) / _cellSize);
-            _dragStartedPosition = worldPosition;
-        }
         
-        private void OnDragEnded(Vector2 worldPosition)
-        {
-            if (!IsValidPosition(_dragStartedColumnIndex, _dragStartedRowIndex)) return;
-            
-            int columnIndex = Mathf.FloorToInt(((worldPosition - _originPosition).x + _cellSize / 2) / _cellSize);
-            int rowIndex = Mathf.FloorToInt(((worldPosition - _originPosition).y + _cellSize / 2) / _cellSize);
-
-            if (columnIndex == _dragStartedColumnIndex && rowIndex == _dragStartedRowIndex) return;
-            
-            float swipeAngle = Mathf.Atan2(worldPosition.y - _dragStartedPosition.y, worldPosition.x - _dragStartedPosition.x) *
-                    180 / Mathf.PI;
-            if (swipeAngle < 0) swipeAngle += 360;
-            
-            if (swipeAngle >= 315 || swipeAngle < 45)
-            {
-                columnIndex = _dragStartedColumnIndex + 1;
-                rowIndex = _dragStartedRowIndex;
-            }
-            else if (swipeAngle >= 45 && swipeAngle < 135)
-            {
-                columnIndex = _dragStartedColumnIndex;
-                rowIndex = _dragStartedRowIndex + 1;
-            }
-            else if (swipeAngle >= 135 && swipeAngle < 225)
-            {
-                columnIndex = _dragStartedColumnIndex - 1;
-                rowIndex = _dragStartedRowIndex;
-            }
-            else 
-            {
-                columnIndex = _dragStartedColumnIndex;
-                rowIndex = _dragStartedRowIndex - 1;
-            }
-
-            if (!IsValidPosition(columnIndex, rowIndex)) return;
-
-            CellModel firstCellModel = GetCellModel(_dragStartedColumnIndex, _dragStartedRowIndex);
-            CellModel secondCellModel = GetCellModel(columnIndex, rowIndex);
-            
-            firstCellModel.hasPlacedDropItem = false;
-            secondCellModel.hasPlacedDropItem = false;
-            
-            if (CanSwap(firstCellModel, secondCellModel))
-            {
-                SwapDropItems(firstCellModel, secondCellModel);
-                _activeCellModelsManager.AddSimultaneousCellModelsToList(new List<CellModel>() { firstCellModel, secondCellModel });
-                _view.SwapDropItems(firstCellModel, secondCellModel, true);
-            }
-
-            else
-            {
-                _view.SwapDropItems(firstCellModel, secondCellModel, false);
-            }
-        }
         
-
-        private bool CanSwap(CellModel firstCellModel, CellModel secondCellModel)
+        private void ExplodeDropItem(CellModel cellModel)
         {
-            SwapDropItems(firstCellModel, secondCellModel);
-            bool isMatched = _matchManager.GetMatchedCellModels(new List<CellModel> { firstCellModel, secondCellModel }).Count > 0;;
-            SwapDropItems(firstCellModel, secondCellModel);
-            return isMatched;
-        }
-
-        private void SwapDropItems(CellModel firstCellModel, CellModel secondCellModel)
-        {
-            DropItemType firstDropItemType = firstCellModel.dropItemType;
-            DropItemType secondDropItemType = secondCellModel.dropItemType;
-            firstCellModel.dropItemType = secondDropItemType;
-            secondCellModel.dropItemType = firstDropItemType;
+            _view.ReturnDropItemToPool(cellModel.GetDropItem());
+            cellModel.RemoveDropItem();
         }
         
         private void OnMoveCompleted(int columnIndex, int rowIndex)
         {
             CellModel cellModel = GetCellModel(columnIndex, rowIndex);
-            cellModel.hasPlacedDropItem = true;
+            cellModel.HasPlacedDropItem = true;
             if (_activeCellModelsManager.CheckAllActiveCellModelsCompleted(cellModel, out int listIndex))
             {
                 List<CellModel> matchedCellModelList = _matchManager.GetMatchedCellModels(_activeCellModelsManager.GetSimultaneousCellModels(listIndex));
                 List<CellModel> simultaneouslyMovingCellModels = new List<CellModel>();
                 foreach (CellModel matchedCellModel in matchedCellModelList)
                 {
-                    matchedCellModel.hasAssignedDropItem = false;
-                    matchedCellModel.hasPlacedDropItem = false;
+                    ExplodeDropItem(matchedCellModel);
+                    matchedCellModel.HasPlacedDropItem = false;
                 }
 
                 Dictionary<CellModel, int> targetRowIndexOfFillingDropItems =
                     _fillingDropItemDeterminer.GetTargetRowIndexOfFillingDropItems(
                         out int[] emptyCellCountInEachColumn);
                 
-
-                foreach (CellModel explodingCellModel in matchedCellModelList)
-                {
-                    _view.ExplodeDropItem(explodingCellModel.columnIndex, explodingCellModel.rowIndex);
-                }
-
                 foreach (KeyValuePair<CellModel, int> pair in targetRowIndexOfFillingDropItems)
                 {
                     CellModel cellModelToBeFilled = Fill(pair.Key, pair.Value);
-                    _view.FillDropItem(pair.Key, cellModelToBeFilled);
                     simultaneouslyMovingCellModels.Add(cellModelToBeFilled);
                 }
 
@@ -201,7 +111,7 @@ namespace Board
                         float initialVerticalPosition = _rowCount * _cellSize;
                         if (rowIndexOfSpawned > 0)
                         {
-                            float belowDropItemVerticalPosition = _view.GetDropItemPosition(columnIndexOfSpawned, rowIndexOfSpawned - 1).y;
+                            float belowDropItemVerticalPosition = GetCellModel(columnIndexOfSpawned, rowIndexOfSpawned - 1).GetDropItem().GetPosition().y;
                             if (belowDropItemVerticalPosition > (_rowCount - 1) * _cellSize)
                             {
                                 initialVerticalPosition = belowDropItemVerticalPosition + _cellSize;
@@ -221,55 +131,49 @@ namespace Board
         private CellModel SpawnNewDropItem(int columnIndex, int rowIndex, float initialVerticalPosition)
         {
             CellModel cellModel = GetCellModel(columnIndex, rowIndex);
-            Fall(cellModel, _dropItemDeterminer.GenerateRandomDropItemType());
-            _view.FallNewDropItem(cellModel, initialVerticalPosition);
+            if (cellModel.HasAssignedDropItem())
+            {
+                Debug.LogError("Target cell has drop item view.");
+            }
+            cellModel.DropItemType = _dropItemDeterminer.GenerateRandomDropItemType();
+            Vector2 initialPosition = new Vector2(cellModel.Position.x, initialVerticalPosition);
+            IDropItemView dropItem = _view.GetDropItemFromPool();
+            dropItem.SetPosition(initialPosition);
+            dropItem.SetDropItemSprite(_view.GetDropItemSprite(cellModel.DropItemType));
+            cellModel.SetDropItem(dropItem);
+            dropItem.UpdateTargetVerticalPosition(cellModel.Position);
             return cellModel;
         }
 
         private CellModel Fill(CellModel cellModel, int targetRowIndex)
         {
-            CellModel newCellModel = GetCellModel(cellModel.columnIndex, targetRowIndex);
-            if (!cellModel.hasAssignedDropItem)
+            CellModel newCellModel = GetCellModel(cellModel.ColumnIndex, targetRowIndex);
+            if (!cellModel.HasAssignedDropItem())
             {
                 Debug.LogError("There is not filling object in the cell");
             }
             
-            if (newCellModel.hasAssignedDropItem)
+            if (newCellModel.HasAssignedDropItem())
             {
                 Debug.LogError("Target cell is not empty.");
             }
             
-            DropItemType dropItemType = cellModel.dropItemType;
-            newCellModel.dropItemType = dropItemType;
-            cellModel.hasAssignedDropItem = false;
-            cellModel.hasPlacedDropItem = false;
-            newCellModel.hasAssignedDropItem = true;
+            DropItemType dropItemType = cellModel.DropItemType;
+            newCellModel.DropItemType = dropItemType;
+            IDropItemView dropItem = cellModel.GetDropItem();
+            newCellModel.SetDropItem(dropItem);
+            dropItem.UpdateTargetVerticalPosition(newCellModel.Position);
+            cellModel.RemoveDropItem();
+            cellModel.HasPlacedDropItem = false;
             return newCellModel;
-        }
-
-        private void Fall(CellModel cellModel, DropItemType dropItemType)
-        {
-            if (cellModel.hasAssignedDropItem)
-            {
-                Debug.LogError("Target cell is not empty.");
-                return;
-            }
-
-            cellModel.dropItemType = dropItemType;
-            cellModel.hasAssignedDropItem = true;
         }
         
         private CellModel GetCellModel(int columnIndex, int rowIndex)
         {
-            return _cellModelList[columnIndex, rowIndex];
-        }
-        
-        private bool IsValidPosition(int columnIndex, int rowIndex) {
             if (columnIndex < 0 || rowIndex < 0 || columnIndex >= _columnCount || rowIndex >= _rowCount) {
-                return false;
+                return null;
             }
-
-            return GetCellModel(columnIndex, rowIndex).hasPlacedDropItem;
+            return _cellModelList[columnIndex, rowIndex];
         }
     }
     

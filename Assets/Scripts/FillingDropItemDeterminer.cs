@@ -25,13 +25,13 @@ namespace Board
                 for (int j = 0; j < _rowCount; j++)
                 {
                     CellModel cellModel = _getCellModel(i,j);
-                    if (!cellModel.hasAssignedDropItem) emptyCellCountInEachColumn[i]++;
+                    if (!cellModel.HasAssignedDropItem()) emptyCellCountInEachColumn[i]++;
                     else
                     {
                         int count = 0;
                         for (int k = j - 1; k >= 0; k--)
                         {
-                            if (!_getCellModel(i, k).hasAssignedDropItem) 
+                            if (!_getCellModel(i, k).HasAssignedDropItem()) 
                             {
                                 count++;
                             }
@@ -39,7 +39,7 @@ namespace Board
 
                         if (count > 0)
                         {
-                            targetRowIndexOfFillingDropItemsDict.Add(cellModel, cellModel.rowIndex - count);
+                            targetRowIndexOfFillingDropItemsDict.Add(cellModel, cellModel.RowIndex - count);
                         }
                     }
                 }

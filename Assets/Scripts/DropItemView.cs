@@ -1,8 +1,6 @@
 ﻿using System;
-using System.Collections;
 using DG.Tweening;
 using UnityEngine;
-using UnityEngine.PlayerLoop;
 
 namespace Board
 {
@@ -13,10 +11,9 @@ namespace Board
         private Vector2 _targetPosition;
         private bool _isMoving = false;
         private const float _gravity = 5f;
-        private int _columnIndex;
-        private int _rowIndex;
-        private Action<int, int> _onMoveCompleted;
+        private Action _onMoveCompleted;
         private float _startTime;
+        
         void Start()
         {
             _targetPosition = transform.position;
@@ -38,7 +35,7 @@ namespace Board
                 {
                     transform.position = _targetPosition;
                     _isMoving = false;
-                    _onMoveCompleted?.Invoke(_columnIndex, _rowIndex);
+                    _onMoveCompleted?.Invoke();
                 }
             }
         }
@@ -50,17 +47,17 @@ namespace Board
             _startTime = Time.time;
         }
 
-        public void SwapDropItem(Vector2 targetPosition, bool isDragged)
+        public void AnimateSwap(Vector2 targetPosition, bool isDragged)
         {
             DOTween.Sequence().Append(Swap(targetPosition, isDragged))
-                .OnComplete(() => _onMoveCompleted?.Invoke(_columnIndex, _rowIndex));
+                .OnComplete(() => _onMoveCompleted?.Invoke());
         }
 
-        public void SwapAndBack(Vector2 targetPosition, bool isDragged)
+        public void AnimateSwapAndBack(Vector2 targetPosition, bool isDragged)
         {
             Vector2 position = transform.position;
             DOTween.Sequence().Append(Swap(targetPosition, isDragged)).Append(Swap(position, !isDragged))
-                .OnComplete(() => _onMoveCompleted?.Invoke(_columnIndex, _rowIndex));
+                .OnComplete(() => _onMoveCompleted?.Invoke());
         }
         
         private Sequence Swap(Vector2 targetPosition, bool isDragged)
@@ -74,13 +71,7 @@ namespace Board
                     .Append(transform.DOScale(localScale, 0.2f)))
                 .OnComplete(() => spriteRenderer.sortingOrder = 1);
         }
-
-        public void SetIndex(int columnIndex, int rowIndex)
-        {
-            _columnIndex = columnIndex;
-            _rowIndex = rowIndex;
-        }
-
+        
         public void SetActive(bool status)
         {
             gameObject.SetActive(status);
@@ -107,7 +98,7 @@ namespace Board
             transform.localScale = localScale;
         }
 
-        public void SetOnMoveCompletedAction(Action<int,int> onMoveCompleted)
+        public void SetOnMoveCompletedAction(Action onMoveCompleted)
         {
             _onMoveCompleted = onMoveCompleted;
         }
@@ -122,14 +113,12 @@ namespace Board
     {
         void UpdateTargetVerticalPosition(Vector2 targetPosition);
         void SetActive(bool status);
-        void SetParent(Transform parentTransform);
         void SetPosition(Vector2 position);
         void SetDropItemSprite(Sprite sprite);
         void SetLocalScale(Vector2 localScale);
-        void SetIndex(int columnIndex, int rowIndex);
-        void SetOnMoveCompletedAction(Action<int, int> onMoveCompleted);
-        void SwapDropItem(Vector2 targetPosition, bool isDragged);
-        void SwapAndBack(Vector2 targetPosition, bool isDragged);
+        void SetOnMoveCompletedAction(Action onMoveCompleted);
+        void AnimateSwap(Vector2 targetPosition, bool isDragged);
+        void AnimateSwapAndBack(Vector2 targetPosition, bool isDragged);
         Vector2 GetPosition();
     }
 }

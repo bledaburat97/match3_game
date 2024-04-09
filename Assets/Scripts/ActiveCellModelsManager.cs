@@ -17,12 +17,12 @@ namespace Board
         {
             foreach (CellModel newCellModel in newCellModelList)
             {
-                if (IsCellModelActive(newCellModel.columnIndex, newCellModel.rowIndex,
+                if (IsCellModelActive(newCellModel.ColumnIndex, newCellModel.RowIndex,
                         out int simultaneousCellModelListIndex))
                 {
                     CellModel cellModel = _simultaneousCellModelsList[simultaneousCellModelListIndex].FirstOrDefault(cellModel =>
-                        cellModel.columnIndex == newCellModel.columnIndex
-                        && cellModel.rowIndex == newCellModel.rowIndex);
+                        cellModel.ColumnIndex == newCellModel.ColumnIndex
+                        && cellModel.RowIndex == newCellModel.RowIndex);
                     _simultaneousCellModelsList[simultaneousCellModelListIndex].Remove(cellModel);
                 }
             }
@@ -32,12 +32,12 @@ namespace Board
         
         public bool CheckAllActiveCellModelsCompleted(CellModel checkingCellModel, out int simultaneousCellModelListIndex)
         {
-            if (IsCellModelActive(checkingCellModel.columnIndex, checkingCellModel.rowIndex,
+            if (IsCellModelActive(checkingCellModel.ColumnIndex, checkingCellModel.RowIndex,
                     out simultaneousCellModelListIndex))
             {
                 foreach (CellModel cellModel in _simultaneousCellModelsList[simultaneousCellModelListIndex])
                 {
-                    if (cellModel.hasPlacedDropItem == false) return false;
+                    if (cellModel.HasPlacedDropItem == false) return false;
                 }
 
                 return true;
@@ -63,8 +63,8 @@ namespace Board
             for (int j = 0; j < _simultaneousCellModelsList.Count; j++)
             {
                 if (_simultaneousCellModelsList[j].Any(cellModel =>
-                        cellModel.columnIndex == columnIndex
-                        && cellModel.rowIndex == rowIndex))
+                        cellModel.ColumnIndex == columnIndex
+                        && cellModel.RowIndex == rowIndex))
                 {
                     simultaneousCellModelListIndex = j;
                     return true;

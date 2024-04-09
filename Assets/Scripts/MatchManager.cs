@@ -46,16 +46,16 @@ namespace Board
         {
             if (_matchedCellModelAndMatchIndexDict.ContainsKey(cellModel)) return;
 
-            int downLinkAmount = GetLinkAmount(cellModel.columnIndex, cellModel.rowIndex, 0, -1, cellModel.dropItemType);
-            int upLinkAmount = GetLinkAmount(cellModel.columnIndex, cellModel.rowIndex, 0, 1, cellModel.dropItemType);
+            int downLinkAmount = GetLinkAmount(cellModel.ColumnIndex, cellModel.RowIndex, 0, -1, cellModel.DropItemType);
+            int upLinkAmount = GetLinkAmount(cellModel.ColumnIndex, cellModel.RowIndex, 0, 1, cellModel.DropItemType);
 
             int verticalLinkAmount = 1 + downLinkAmount + upLinkAmount;
             if (verticalLinkAmount >= 3)
             {
-                int downMostRowIndex = cellModel.rowIndex - downLinkAmount;
+                int downMostRowIndex = cellModel.RowIndex - downLinkAmount;
                 for (int i = 0; i < verticalLinkAmount; i++)
                 {
-                    _matchedCellModelAndMatchIndexDict.Add(_getCellModel(cellModel.columnIndex, downMostRowIndex + i), _matchCount);
+                    _matchedCellModelAndMatchIndexDict.Add(_getCellModel(cellModel.ColumnIndex, downMostRowIndex + i), _matchCount);
                 }
             }
 
@@ -64,18 +64,18 @@ namespace Board
         
         private void SetHorizontalMatch(CellModel cellModel)
         {
-            int leftLinkAmount = GetLinkAmount(cellModel.columnIndex, cellModel.rowIndex, -1, 0, cellModel.dropItemType);
-            int rightLinkAmount = GetLinkAmount(cellModel.columnIndex, cellModel.rowIndex, 1, 0, cellModel.dropItemType);
+            int leftLinkAmount = GetLinkAmount(cellModel.ColumnIndex, cellModel.RowIndex, -1, 0, cellModel.DropItemType);
+            int rightLinkAmount = GetLinkAmount(cellModel.ColumnIndex, cellModel.RowIndex, 1, 0, cellModel.DropItemType);
 
             int horizontalLinkAmount = 1 + leftLinkAmount + rightLinkAmount;
             if (horizontalLinkAmount >= 3)
             {
-                int leftMostColumnIndex = cellModel.columnIndex - leftLinkAmount;
+                int leftMostColumnIndex = cellModel.ColumnIndex - leftLinkAmount;
                 List<int> intersectedMatchIndexes = new List<int>();
                 for (int i = 0; i < horizontalLinkAmount; i++)
                 {
                     if (_matchedCellModelAndMatchIndexDict.TryGetValue(
-                            _getCellModel(leftMostColumnIndex + i, cellModel.rowIndex), out int intersectedMatchIndex))
+                            _getCellModel(leftMostColumnIndex + i, cellModel.RowIndex), out int intersectedMatchIndex))
                     {
                         intersectedMatchIndexes.Add(intersectedMatchIndex);
                     }
@@ -93,9 +93,9 @@ namespace Board
                 
                 for (int i = 0; i < horizontalLinkAmount; i++)
                 {
-                    if (!_matchedCellModelAndMatchIndexDict.ContainsKey(_getCellModel(leftMostColumnIndex + i, cellModel.rowIndex)))
+                    if (!_matchedCellModelAndMatchIndexDict.ContainsKey(_getCellModel(leftMostColumnIndex + i, cellModel.RowIndex)))
                     {
-                        _matchedCellModelAndMatchIndexDict.Add(_getCellModel(leftMostColumnIndex + i, cellModel.rowIndex), matchIndex);
+                        _matchedCellModelAndMatchIndexDict.Add(_getCellModel(leftMostColumnIndex + i, cellModel.RowIndex), matchIndex);
                     }
                 }
 
@@ -129,8 +129,8 @@ namespace Board
             int currentRow = rowIndex + rowStep;
 
             while (IsValidPosition(currentColumn, currentRow) &&
-                   _getCellModel(currentColumn, currentRow).hasPlacedDropItem &&
-                   _getCellModel(currentColumn, currentRow).dropItemType == dropItemType)
+                   _getCellModel(currentColumn, currentRow).HasPlacedDropItem &&
+                   _getCellModel(currentColumn, currentRow).DropItemType == dropItemType)
             {
                 linkAmount++;
                 currentColumn += columnStep;
