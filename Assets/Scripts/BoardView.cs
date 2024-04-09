@@ -14,7 +14,7 @@ namespace Board
         private IDropItemView[,] _dropItems;
         private Action<Vector2> _onDragStarted;
         private Action<Vector2> _onDragEnded;
-
+        private Action<int, int> _onDropItemPlaced;
         private void Start()
         {
             _dropItemTypeToSpriteDict = new Dictionary<DropItemType, Sprite>();
@@ -59,6 +59,11 @@ namespace Board
         {
             mainCamera.transform.position = new Vector3(cameraPosition.x, cameraPosition.y, mainCamera.transform.position.z);
         }
+
+        public void SetTile()
+        {
+            
+        }
         
         public void SetDropItemViews(CellModel[,] cellModelList)
         {
@@ -92,6 +97,11 @@ namespace Board
             dropItem.SetIndex(cellModel.columnIndex, cellModel.rowIndex);
         }
 
+        public Vector2 GetDropItemPosition(int columnIndex, int rowIndex)
+        {
+            return _dropItems[columnIndex, rowIndex].GetPosition();
+        }
+
         private IDropItemView SpawnDropItem(Vector2 initialPosition, CellModel cellModel)
         {
             IDropItemView dropItem = dropItemPool.GetDropItemFromPool();
@@ -99,21 +109,29 @@ namespace Board
             dropItem.SetPosition(initialPosition);
             dropItem.SetDropItemSprite(_dropItemTypeToSpriteDict[cellModel.dropItemType]);
             dropItem.SetLocalScale(cellModel.localScale);
-            dropItem.SetOnMoveCompletedAction(cellModel.onMoveCompleted);
+            dropItem.SetOnMoveCompletedAction(_onDropItemPlaced);
             dropItem.SetIndex(cellModel.columnIndex, cellModel.rowIndex);
             return dropItem;
         }
 
-        public void SwapDropItems(CellModel firstCellModel, CellModel secondCellModel)
+        public void SwapDropItems(CellModel firstCellModel, CellModel secondCellModel, bool canSwap)
         {
             IDropItemView firstDropItem = _dropItems[firstCellModel.columnIndex, firstCellModel.rowIndex];
             IDropItemView secondDropItem = _dropItems[secondCellModel.columnIndex, secondCellModel.rowIndex];
-            _dropItems[secondCellModel.columnIndex, secondCellModel.rowIndex] = firstDropItem;
-            _dropItems[firstCellModel.columnIndex, firstCellModel.rowIndex] = secondDropItem;
-            firstDropItem.UpdateTargetVerticalPosition(secondCellModel.position);
-            firstDropItem.SetIndex(secondCellModel.columnIndex, secondCellModel.rowIndex);
-            secondDropItem.UpdateTargetVerticalPosition(firstCellModel.position);
-            secondDropItem.SetIndex(firstCellModel.columnIndex, firstCellModel.rowIndex);
+            if (canSwap)
+            {
+                _dropItems[secondCellModel.columnIndex, secondCellModel.rowIndex] = firstDropItem;
+                _dropItems[firstCellModel.columnIndex, firstCellModel.rowIndex] = secondDropItem;
+                firstDropItem.SetIndex(secondCellModel.columnIndex, secondCellModel.rowIndex);
+                firstDropItem.SwapDropItem(secondCellModel.position, true);
+                secondDropItem.SetIndex(firstCellModel.columnIndex, firstCellModel.rowIndex);
+                secondDropItem.SwapDropItem(firstCellModel.position, false);
+            }
+            else
+            {
+                firstDropItem.SwapAndBack(secondCellModel.position, true);
+                secondDropItem.SwapAndBack(firstCellModel.position, false);
+            }
         }
 
         public void FillDropItem(CellModel previousCellModel, CellModel newCellModel)
@@ -139,6 +157,11 @@ namespace Board
         {
             return tilePrefab.GetComponent<SpriteRenderer>().sprite.bounds.size;
         }
+
+        public void SetOnDropItemPlaced(Action<int, int> onDropItemPlaced)
+        {
+            _onDropItemPlaced = onDropItemPlaced;
+        }
     }
 
     public interface IBoardView
@@ -147,12 +170,14 @@ namespace Board
         void SetCameraPosition(Vector2 cameraPosition);
         void SetDropItemViews(CellModel[,] cellModelList);
         Vector2 GetOriginalSizeOfSprites();
-        void SwapDropItems(CellModel firstCellModel, CellModel secondCellModel);
+        void SwapDropItems(CellModel firstCellModel, CellModel secondCellModel, bool canSwap);
         void FillDropItem(CellModel previousCellModel, CellModel newCellModel);
         void FallNewDropItem(CellModel cellModel, float initialVerticalPosition);
         void SetOnDragStarted(Action<Vector2> onDragStarted);
         void SetOnDragEnded(Action<Vector2> onDragEnded);
         void ExplodeDropItem(int columnIndex, int rowIndex);
+        void SetOnDropItemPlaced(Action<int, int> onDropItemPlaced);
+        Vector2 GetDropItemPosition(int columnIndex, int rowIndex);
     }
 
 }

@@ -49,26 +49,19 @@ namespace Board
             _dropItemTypeList[columnIndex, rowIndex] = dropItemTypes[randomIndex];
         }
 
-        public DropItemType[] GenerateRandomDropItemTypeList(int count)
+        public DropItemType GenerateRandomDropItemType()
         {
             List<DropItemType> allDropItemTypes = Enum.GetValues(typeof(DropItemType))
                 .Cast<DropItemType>()
                 .ToList();
-            DropItemType[] randomDropItemTypes = new DropItemType[count];
-            for (int i = 0; i < count; i++)
-            {
-                int randomIndex = _rand.Next(0, allDropItemTypes.Count);
-                randomDropItemTypes[i] = (DropItemType)randomIndex;
-            }
-
-            return randomDropItemTypes;
+            return (DropItemType)_rand.Next(0, allDropItemTypes.Count);
         }
     }
 
     public interface IDropItemDeterminer
     {
         DropItemType[,] GetInitialDropItemTypes(int columnCount, int rowCount);
-        DropItemType[] GenerateRandomDropItemTypeList(int count);
+        DropItemType GenerateRandomDropItemType();
     }
 
     public enum DropItemType

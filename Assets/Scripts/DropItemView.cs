@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections;
+using DG.Tweening;
 using UnityEngine;
+using UnityEngine.PlayerLoop;
 
 namespace Board
 {
@@ -35,7 +37,7 @@ namespace Board
                 else
                 {
                     transform.position = _targetPosition;
-                    _isMoving = true;
+                    _isMoving = false;
                     _onMoveCompleted?.Invoke(_columnIndex, _rowIndex);
                 }
             }
@@ -46,6 +48,31 @@ namespace Board
             _targetPosition = targetPosition;
             _isMoving = true;
             _startTime = Time.time;
+        }
+
+        public void SwapDropItem(Vector2 targetPosition, bool isDragged)
+        {
+            DOTween.Sequence().Append(Swap(targetPosition, isDragged))
+                .OnComplete(() => _onMoveCompleted?.Invoke(_columnIndex, _rowIndex));
+        }
+
+        public void SwapAndBack(Vector2 targetPosition, bool isDragged)
+        {
+            Vector2 position = transform.position;
+            DOTween.Sequence().Append(Swap(targetPosition, isDragged)).Append(Swap(position, !isDragged))
+                .OnComplete(() => _onMoveCompleted?.Invoke(_columnIndex, _rowIndex));
+        }
+        
+        private Sequence Swap(Vector2 targetPosition, bool isDragged)
+        {
+            Vector2 localScale = transform.localScale;
+            Vector2 maxLocalScale = isDragged ? localScale * 2 : localScale;
+            
+            return DOTween.Sequence().AppendCallback(() => spriteRenderer.sortingOrder = isDragged ? 2 : 1)
+                .Append(transform.DOMove(targetPosition, 0.4f))
+                .Join(DOTween.Sequence().Append(transform.DOScale(maxLocalScale, 0.2f))
+                    .Append(transform.DOScale(localScale, 0.2f)))
+                .OnComplete(() => spriteRenderer.sortingOrder = 1);
         }
 
         public void SetIndex(int columnIndex, int rowIndex)
@@ -84,6 +111,11 @@ namespace Board
         {
             _onMoveCompleted = onMoveCompleted;
         }
+
+        public Vector2 GetPosition()
+        {
+            return transform.position;
+        }
     }
 
     public interface IDropItemView
@@ -96,5 +128,8 @@ namespace Board
         void SetLocalScale(Vector2 localScale);
         void SetIndex(int columnIndex, int rowIndex);
         void SetOnMoveCompletedAction(Action<int, int> onMoveCompleted);
+        void SwapDropItem(Vector2 targetPosition, bool isDragged);
+        void SwapAndBack(Vector2 targetPosition, bool isDragged);
+        Vector2 GetPosition();
     }
 }

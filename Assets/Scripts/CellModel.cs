@@ -12,6 +12,5 @@ namespace Board
         public Vector2 localScale { get; set; }
         public bool hasAssignedDropItem { get; set; }
         public bool hasPlacedDropItem { get; set; }
-        public Action<int, int> onMoveCompleted { get; set; }
     }
 }

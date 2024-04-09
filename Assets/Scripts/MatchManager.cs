@@ -1,135 +1,143 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Board
 {
-    public class MatchManager
+    public class MatchManager : IMatchManager
     {
         private int _columnCount = 8;
         private int _rowCount = 8;
-
-        public List<CellModel> CheckHorizontalMatch(int columnIndex, int rowIndex, CellModel[,] cellModels, out List<CellModel> intersectedCellModels)
+        private Func<int, int, CellModel> _getCellModel;
+        private Dictionary<CellModel, int> _matchedCellModelAndMatchIndexDict;
+        private int _matchCount;
+        
+        public MatchManager(int columnCount, int rowCount, Func<int, int, CellModel> getCellModel)
         {
-            List<CellModel> matchedCellModels = new List<CellModel>();
-            CellModel swappedCellModel = cellModels[columnIndex, rowIndex];
-            DropItemType dropItemType = swappedCellModel.dropItemType;
-            intersectedCellModels = new List<CellModel>();
-            int rightLinkAmount = 0;
-            int leftLinkAmount = 0;
-
-            for (int i = 1; i < _columnCount; i++)
-            {
-                if (IsValidPosition(columnIndex - i, rowIndex))
-                {
-                    if (cellModels[columnIndex - i, rowIndex].hasPlacedDropItem &&
-                        cellModels[columnIndex - i, rowIndex].dropItemType == dropItemType)
-                    {
-                        leftLinkAmount++;
-                    }
-                    else
-                    {
-                        break;
-                    }
-                }
-                else
-                {
-                    break;
-                }
-            }
-            
-            for (int i = 1; i < _columnCount; i++)
-            {
-                if (IsValidPosition(columnIndex + i, rowIndex))
-                {
-                    if (cellModels[columnIndex + i, rowIndex].hasPlacedDropItem &&
-                        cellModels[columnIndex + i, rowIndex].dropItemType == dropItemType)
-                    {
-                        rightLinkAmount++;
-                    }
-                    else
-                    {
-                        break;
-                    }
-                }
-                else
-                {
-                    break;
-                }
-            }
-            
-            int horizontalLinkAmount = 1 + leftLinkAmount + rightLinkAmount;
-            if (horizontalLinkAmount >= 3) 
-            {
-                int leftMostColumnIndex = columnIndex - leftLinkAmount;
-                for (int i = 0; i < horizontalLinkAmount; i++) {
-                    matchedCellModels.Add(cellModels[leftMostColumnIndex + i, rowIndex]);
-                }
-                
-                return matchedCellModels;
-            }
-
-            return null;
+            _columnCount = columnCount;
+            _rowCount = rowCount;
+            _getCellModel = getCellModel;
+            ResetMatchedCellModels();
         }
         
-        public List<CellModel> CheckVerticalMatch(int columnIndex, int rowIndex, CellModel[,] cellModels)
+        private void ResetMatchedCellModels()
         {
-            List<CellModel> matchedCellModels = new List<CellModel>();
-            CellModel swappedCellModel = cellModels[columnIndex, rowIndex];
-            DropItemType dropItemType = swappedCellModel.dropItemType;
-            int upLinkAmount = 0;
-            int downLinkAmount = 0;
+            _matchedCellModelAndMatchIndexDict = new Dictionary<CellModel, int>();
+            _matchCount = 0;
+        }
 
-            for (int i = 1; i < _rowCount; i++)
+        public List<CellModel> GetMatchedCellModels(List<CellModel> cellModelsToBeChecked)
+        {
+            ResetMatchedCellModels();
+            foreach (CellModel cellModel in cellModelsToBeChecked)
             {
-                if (IsValidPosition(columnIndex, rowIndex - i))
-                {
-                    if (cellModels[columnIndex, rowIndex - i].hasPlacedDropItem &&
-                        cellModels[columnIndex, rowIndex - i].dropItemType == dropItemType)
-                    {
-                        downLinkAmount++;
-                    }
-                    else
-                    {
-                        break;
-                    }
-                }
-                else
-                {
-                    break;
-                }
+                SetVerticalMatch(cellModel);
             }
-            
-            for (int i = 1; i < _rowCount; i++)
+
+            foreach (CellModel cellModel in cellModelsToBeChecked)
             {
-                if (IsValidPosition(columnIndex, rowIndex + i))
-                {
-                    if (cellModels[columnIndex, rowIndex + i].hasPlacedDropItem &&
-                        cellModels[columnIndex, rowIndex + i].dropItemType == dropItemType)
-                    {
-                        upLinkAmount++;
-                    }
-                    else
-                    {
-                        break;
-                    }
-                }
-                else
-                {
-                    break;
-                }
+                SetHorizontalMatch(cellModel);
             }
-            
+
+            return _matchedCellModelAndMatchIndexDict.Keys.ToList();
+        }
+        
+        private void SetVerticalMatch(CellModel cellModel)
+        {
+            if (_matchedCellModelAndMatchIndexDict.ContainsKey(cellModel)) return;
+
+            int downLinkAmount = GetLinkAmount(cellModel.columnIndex, cellModel.rowIndex, 0, -1, cellModel.dropItemType);
+            int upLinkAmount = GetLinkAmount(cellModel.columnIndex, cellModel.rowIndex, 0, 1, cellModel.dropItemType);
+
             int verticalLinkAmount = 1 + downLinkAmount + upLinkAmount;
-            if (verticalLinkAmount >= 3) 
+            if (verticalLinkAmount >= 3)
             {
-                int downMostRowIndex = rowIndex - downLinkAmount;
-                for (int i = 0; i < verticalLinkAmount; i++) {
-                    matchedCellModels.Add(cellModels[columnIndex, downMostRowIndex + i]);
+                int downMostRowIndex = cellModel.rowIndex - downLinkAmount;
+                for (int i = 0; i < verticalLinkAmount; i++)
+                {
+                    _matchedCellModelAndMatchIndexDict.Add(_getCellModel(cellModel.columnIndex, downMostRowIndex + i), _matchCount);
                 }
-
-                return matchedCellModels;
             }
 
-            return null;
+            _matchCount += 1;
+        }
+        
+        private void SetHorizontalMatch(CellModel cellModel)
+        {
+            int leftLinkAmount = GetLinkAmount(cellModel.columnIndex, cellModel.rowIndex, -1, 0, cellModel.dropItemType);
+            int rightLinkAmount = GetLinkAmount(cellModel.columnIndex, cellModel.rowIndex, 1, 0, cellModel.dropItemType);
+
+            int horizontalLinkAmount = 1 + leftLinkAmount + rightLinkAmount;
+            if (horizontalLinkAmount >= 3)
+            {
+                int leftMostColumnIndex = cellModel.columnIndex - leftLinkAmount;
+                List<int> intersectedMatchIndexes = new List<int>();
+                for (int i = 0; i < horizontalLinkAmount; i++)
+                {
+                    if (_matchedCellModelAndMatchIndexDict.TryGetValue(
+                            _getCellModel(leftMostColumnIndex + i, cellModel.rowIndex), out int intersectedMatchIndex))
+                    {
+                        intersectedMatchIndexes.Add(intersectedMatchIndex);
+                    }
+                }
+
+                int matchIndex = _matchCount;
+                if (intersectedMatchIndexes.Count > 0)
+                {
+                    matchIndex = intersectedMatchIndexes[0];
+                    for (int i = 1; i < intersectedMatchIndexes.Count; i++)
+                    {
+                        UpdateMatchIndexesOfCellModels(intersectedMatchIndexes[i], matchIndex);
+                    }
+                }
+                
+                for (int i = 0; i < horizontalLinkAmount; i++)
+                {
+                    if (!_matchedCellModelAndMatchIndexDict.ContainsKey(_getCellModel(leftMostColumnIndex + i, cellModel.rowIndex)))
+                    {
+                        _matchedCellModelAndMatchIndexDict.Add(_getCellModel(leftMostColumnIndex + i, cellModel.rowIndex), matchIndex);
+                    }
+                }
+
+                if (intersectedMatchIndexes.Count == 0) _matchCount += 1;
+            }
+
+        }
+
+        private void UpdateMatchIndexesOfCellModels(int previousMatchIndex, int newMatchIndex)
+        {
+            var keysToUpdate = new List<CellModel>();
+
+            foreach (var pair in _matchedCellModelAndMatchIndexDict)
+            {
+                if (pair.Value == previousMatchIndex)
+                {
+                    keysToUpdate.Add(pair.Key);
+                }
+            }
+
+            foreach (var key in keysToUpdate)
+            {
+                _matchedCellModelAndMatchIndexDict[key] = newMatchIndex;
+            }
+        }
+        
+        private int GetLinkAmount(int columnIndex, int rowIndex, int columnStep, int rowStep, DropItemType dropItemType)
+        {
+            int linkAmount = 0;
+            int currentColumn = columnIndex + columnStep;
+            int currentRow = rowIndex + rowStep;
+
+            while (IsValidPosition(currentColumn, currentRow) &&
+                   _getCellModel(currentColumn, currentRow).hasPlacedDropItem &&
+                   _getCellModel(currentColumn, currentRow).dropItemType == dropItemType)
+            {
+                linkAmount++;
+                currentColumn += columnStep;
+                currentRow += rowStep;
+            }
+
+            return linkAmount;
         }
         
         private bool IsValidPosition(int columnIndex, int rowIndex) {
@@ -138,5 +146,10 @@ namespace Board
             } 
             return true;
         }
+    }
+
+    public interface IMatchManager
+    {
+        List<CellModel> GetMatchedCellModels(List<CellModel> cellModelsToBeChecked);
     }
 }
