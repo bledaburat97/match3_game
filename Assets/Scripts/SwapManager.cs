@@ -49,12 +49,18 @@ namespace Board
         private void OnDragEnded(object sender, Vector2 worldPosition)
         {
             CellModel firstCellModel = _getCellModel(_dragStartedColumnIndex, _dragStartedRowIndex);
-            if (firstCellModel == null) return;
+            if (firstCellModel == null || !firstCellModel.HasPlacedDropItem) return;
             if (!IsWorldPositionOutsideTheInitialCell(worldPosition)) return;
-            CellModel secondCellModel = GetTargetCellModel(worldPosition);
-            if (secondCellModel == null) return;
-            
+            GetTargetCellModel(worldPosition, out int columnIndex, out int rowIndex);
+            CellModel secondCellModel = _getCellModel(columnIndex, rowIndex);
             firstCellModel.HasPlacedDropItem = false;
+
+            if (secondCellModel == null || !secondCellModel.HasPlacedDropItem)
+            {
+                firstCellModel.GetDropItem().AnimateFlick(new Vector2(columnIndex - _dragStartedColumnIndex, rowIndex - _dragStartedRowIndex));
+                return;
+            }
+            
             secondCellModel.HasPlacedDropItem = false;
             
             if (CanSwap(firstCellModel, secondCellModel))
@@ -85,10 +91,8 @@ namespace Board
             return true;
         }
 
-        private CellModel GetTargetCellModel(Vector2 worldPosition)
+        private void GetTargetCellModel(Vector2 worldPosition, out int columnIndex, out int rowIndex)
         {
-            int columnIndex;
-            int rowIndex;
             float swipeAngle = Mathf.Atan2(worldPosition.y - _dragStartedPosition.y, worldPosition.x - _dragStartedPosition.x) *
                 180 / Mathf.PI;
             if (swipeAngle < 0) swipeAngle += 360;
@@ -113,8 +117,6 @@ namespace Board
                 columnIndex = _dragStartedColumnIndex;
                 rowIndex = _dragStartedRowIndex - 1;
             }
-
-            return _getCellModel(columnIndex, rowIndex);
         }
         
         private bool CanSwap(CellModel firstCellModel, CellModel secondCellModel)

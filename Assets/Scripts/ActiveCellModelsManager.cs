@@ -43,7 +43,6 @@ namespace Board
                 return true;
             }
 
-            Debug.LogError("Cell model is not in the _cellModelsMovingSimultaneouslyList");
             return false;
         }
 
@@ -55,6 +54,19 @@ namespace Board
         public void RemoveSimultaneousCellModelsAtIndex(int simultaneousCellModelListIndex)
         {
             _simultaneousCellModelsList.RemoveAt(simultaneousCellModelListIndex);
+            TryRemoveEmptyLists();
+        }
+
+        private void TryRemoveEmptyLists()
+        {
+            for (int i = _simultaneousCellModelsList.Count - 1; i >= 0; i--)
+            {
+                List<CellModel> cellModelList = _simultaneousCellModelsList[i];
+                if (cellModelList.Count == 0)
+                {
+                    _simultaneousCellModelsList.RemoveAt(i);
+                }
+            }
         }
 
         private bool IsCellModelActive(int columnIndex, int rowIndex, out int simultaneousCellModelListIndex)

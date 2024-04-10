@@ -6,13 +6,17 @@ namespace Board
 {
     public class DropItemView : MonoBehaviour, IDropItemView
     {
-        [SerializeField] private Transform transform;
         [SerializeField] private SpriteRenderer spriteRenderer;
         private Vector2 _targetPosition;
         private bool _isMoving = false;
-        private const float _gravity = 5f;
+        private const float _gravity = 10f;
         private Action _onMoveCompleted;
         private float _startTime;
+        private const float _explosionDuration = 0.2f;
+        private const float _swappingDuration = 0.4f;
+        private const float _maxScaleRatioDuringSwapping = 1.5f;
+        private const float _flickDuration = 0.4f;
+        private const float _flickMovementRatio = 0.5f;
         
         void Start()
         {
@@ -63,12 +67,12 @@ namespace Board
         private Sequence Swap(Vector2 targetPosition, bool isDragged)
         {
             Vector2 localScale = transform.localScale;
-            Vector2 maxLocalScale = isDragged ? localScale * 2 : localScale;
+            Vector2 maxLocalScale = isDragged ? localScale * _maxScaleRatioDuringSwapping : localScale;
             
             return DOTween.Sequence().AppendCallback(() => spriteRenderer.sortingOrder = isDragged ? 2 : 1)
-                .Append(transform.DOMove(targetPosition, 0.4f))
-                .Join(DOTween.Sequence().Append(transform.DOScale(maxLocalScale, 0.2f))
-                    .Append(transform.DOScale(localScale, 0.2f)))
+                .Append(transform.DOMove(targetPosition, _swappingDuration))
+                .Join(DOTween.Sequence().Append(transform.DOScale(maxLocalScale, _swappingDuration / 2))
+                    .Append(transform.DOScale(localScale, _swappingDuration / 2)))
                 .OnComplete(() => spriteRenderer.sortingOrder = 1);
         }
         
@@ -107,6 +111,19 @@ namespace Board
         {
             return transform.position;
         }
+
+        public Sequence AnimateExplosion()
+        {
+            return DOTween.Sequence().Append(transform.DOScale(0f, _explosionDuration));
+        }
+
+        public void AnimateFlick(Vector2 direction)
+        {
+            Vector2 position = transform.position;
+            Vector2 targetPosition = position + (direction * transform.localScale.x * _flickMovementRatio);
+            DOTween.Sequence().Append(transform.DOMove(targetPosition, _flickDuration / 2)).Append(transform.DOMove(position, _flickDuration / 2))
+                .OnComplete(() => _onMoveCompleted?.Invoke());
+        }
     }
 
     public interface IDropItemView
@@ -120,5 +137,7 @@ namespace Board
         void AnimateSwap(Vector2 targetPosition, bool isDragged);
         void AnimateSwapAndBack(Vector2 targetPosition, bool isDragged);
         Vector2 GetPosition();
+        Sequence AnimateExplosion();
+        void AnimateFlick(Vector2 direction);
     }
 }

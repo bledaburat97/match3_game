@@ -205,6 +205,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   boardView: {fileID: 1188930085}
+  columnCount: 8
+  rowCount: 8
+  nonSpawnableColumnIndices: 
 --- !u!4 &1490096093
 Transform:
   m_ObjectHideFlags: 0
