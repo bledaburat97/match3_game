@@ -30,7 +30,6 @@ namespace Board
             if (Input.GetMouseButtonDown(0))
             {
                 Vector3 worldPosition = mainCamera.ScreenToWorldPoint(Input.mousePosition);
-                Debug.Log("x: " + worldPosition.x + " y: " + worldPosition.y);
                 OnDragStartedEvent?.Invoke(this, worldPosition);
             }
 

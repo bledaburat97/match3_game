@@ -9,14 +9,15 @@ namespace Board
         [SerializeField] private SpriteRenderer spriteRenderer;
         private Vector2 _targetPosition;
         private bool _isMoving = false;
-        private const float _gravity = 10f;
+        private bool _hasActiveAnimation = false;
+        private const float _gravity = 100f;
         private Action _onMoveCompleted;
         private float _startTime;
-        private const float _explosionDuration = 0.2f;
-        private const float _swappingDuration = 0.4f;
+        private const float _explosionDuration = 0.1f;
+        private const float _swappingDuration = 0.3f;
         private const float _maxScaleRatioDuringSwapping = 1.5f;
-        private const float _flickDuration = 0.4f;
-        private const float _flickMovementRatio = 0.5f;
+        private const float _flickDuration = 0.3f;
+        private const float _flickMovementRatio = 0.3f;
         
         void Start()
         {
@@ -25,7 +26,7 @@ namespace Board
 
         void Update()
         {
-            if (_isMoving)
+            if (!_hasActiveAnimation && _isMoving)
             {
                 Vector2 moveDirection = _targetPosition - (Vector2)transform.position;
                 float totalTimePassed = Time.time - _startTime;
@@ -53,15 +54,15 @@ namespace Board
 
         public void AnimateSwap(Vector2 targetPosition, bool isDragged)
         {
-            DOTween.Sequence().Append(Swap(targetPosition, isDragged))
-                .OnComplete(() => _onMoveCompleted?.Invoke());
+            DOTween.Sequence().OnStart(() => SetAnimationStatus(true)).Append(Swap(targetPosition, isDragged))
+                .OnComplete(CompleteAnimation);
         }
 
         public void AnimateSwapAndBack(Vector2 targetPosition, bool isDragged)
         {
             Vector2 position = transform.position;
-            DOTween.Sequence().Append(Swap(targetPosition, isDragged)).Append(Swap(position, !isDragged))
-                .OnComplete(() => _onMoveCompleted?.Invoke());
+            DOTween.Sequence().OnStart(() => SetAnimationStatus(true)).Append(Swap(targetPosition, isDragged)).Append(Swap(position, !isDragged))
+                .OnComplete(CompleteAnimation);
         }
         
         private Sequence Swap(Vector2 targetPosition, bool isDragged)
@@ -79,11 +80,6 @@ namespace Board
         public void SetActive(bool status)
         {
             gameObject.SetActive(status);
-        }
-
-        public void SetParent(Transform parentTransform)
-        {
-            transform.SetParent(parentTransform);
         }
         
         public void SetPosition(Vector2 position)
@@ -121,8 +117,20 @@ namespace Board
         {
             Vector2 position = transform.position;
             Vector2 targetPosition = position + (direction * transform.localScale.x * _flickMovementRatio);
-            DOTween.Sequence().Append(transform.DOMove(targetPosition, _flickDuration / 2)).Append(transform.DOMove(position, _flickDuration / 2))
-                .OnComplete(() => _onMoveCompleted?.Invoke());
+            DOTween.Sequence().OnStart(() => SetAnimationStatus(true)).Append(transform.DOMove(targetPosition, _flickDuration / 2)).Append(transform.DOMove(position, _flickDuration / 2))
+                .OnComplete(CompleteAnimation);
+        }
+        
+        private void SetAnimationStatus(bool status)
+        {
+            _hasActiveAnimation = status;
+            if (!status) _startTime = Time.time;
+        }
+
+        private void CompleteAnimation()
+        {
+            SetAnimationStatus(false);
+            _onMoveCompleted?.Invoke();
         }
     }
 

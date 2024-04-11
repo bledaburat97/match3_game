@@ -14,7 +14,7 @@ namespace Board
         private IBoardView _view;
         private Vector2 _originPosition;
         private IMatchManager _matchManager;
-        private FillingDropItemDeterminer _fillingDropItemDeterminer;
+        private IFillingDropItemDeterminer _fillingDropItemDeterminer;
         private IActiveCellModelsManager _activeCellModelsManager;
         private ISwapManager _swapManager;
         private List<int> _nonSpawnableColumnIndices;
@@ -75,11 +75,11 @@ namespace Board
         private Sequence ExplodeDropItem(CellModel cellModel)
         {
             IDropItemView dropItem = cellModel.GetDropItem();
+            cellModel.HasPlacedDropItem = false;
             return dropItem.AnimateExplosion().OnComplete(() =>
             {
-                _view.ReturnDropItemToPool(dropItem);
                 cellModel.RemoveDropItem();
-                cellModel.HasPlacedDropItem = false;
+                _view.ReturnDropItemToPool(dropItem);
             }).Pause();
         }
         
@@ -87,27 +87,27 @@ namespace Board
         {
             CellModel cellModel = GetCellModel(columnIndex, rowIndex);
             cellModel.HasPlacedDropItem = true;
-            if (_activeCellModelsManager.CheckAllActiveCellModelsCompleted(cellModel, out int simultaneousCellModelListIndex))
+            if (_activeCellModelsManager.CheckAllActiveCellModelsCompleted(cellModel, out int activeCellModelsListIndex))
             {
-                ExplodeBoard(simultaneousCellModelListIndex);
+                ExplodeBoard(activeCellModelsListIndex);
             }
         }
 
-        private void ExplodeBoard(int simultaneousCellModelListIndex)
+        private void ExplodeBoard(int activeCellModelsListIndex)
         {
-            List<CellModel> matchedCellModelList = _matchManager.GetMatchedCellModels(_activeCellModelsManager.GetSimultaneousCellModels(simultaneousCellModelListIndex));
+            List<CellModel> matchedCellModelList = _matchManager.GetMatchedCellModels(_activeCellModelsManager.GetSimultaneouslyActiveCellModelsList()[activeCellModelsListIndex]);
             Sequence explosionSequence = DOTween.Sequence();
             foreach (CellModel matchedCellModel in matchedCellModelList)
             {
                 explosionSequence.Join(ExplodeDropItem(matchedCellModel));
             }
 
-            explosionSequence.OnComplete(() => FillBoard(simultaneousCellModelListIndex)).Play();
+            explosionSequence.OnComplete(() => FillBoard(activeCellModelsListIndex)).Play();
         }
 
-        private void FillBoard(int simultaneousCellModelListIndex)
+        private void FillBoard(int activeCellModelsListIndex)
         {
-            List<CellModel> simultaneousCellModelList = new List<CellModel>();
+            List<CellModel> newActiveCellModels = new List<CellModel>();
 
             Dictionary<CellModel, int> targetRowIndexOfFillingDropItems =
                 _fillingDropItemDeterminer.GetTargetRowIndexOfFillingDropItems(
@@ -116,7 +116,7 @@ namespace Board
             foreach (KeyValuePair<CellModel, int> pair in targetRowIndexOfFillingDropItems)
             {
                 CellModel cellModelToBeFilled = Fill(pair.Key, pair.Value);
-                simultaneousCellModelList.Add(cellModelToBeFilled);
+                newActiveCellModels.Add(cellModelToBeFilled);
             }
 
             for (int i = 0; i < _columnCount; i++)
@@ -139,12 +139,26 @@ namespace Board
 
                     CellModel cellModelToBeFell = SpawnNewDropItem(i, rowIndexOfSpawned,
                         initialVerticalPosition);
-                    simultaneousCellModelList.Add(cellModelToBeFell);
+                    newActiveCellModels.Add(cellModelToBeFell);
                 }
             }
-
-            _activeCellModelsManager.AddSimultaneousCellModelsToList(simultaneousCellModelList);
-            _activeCellModelsManager.RemoveSimultaneousCellModelsAtIndex(simultaneousCellModelListIndex);
+            List<CellModel> cellModelsToBeMatched = _matchManager.GetMatchedCellModels(newActiveCellModels);
+            if (_swapManager.CheckIfColumnIndicesIntersectWithAnyActiveCellModelList(newActiveCellModels, cellModelsToBeMatched, out int intersectedActiveCellModelsListIndex))
+            {
+                if (intersectedActiveCellModelsListIndex == activeCellModelsListIndex)
+                {
+                    _activeCellModelsManager.CreateNewActiveCellModelList(newActiveCellModels);
+                }
+                else
+                {
+                    _activeCellModelsManager.AddActiveCellModelsToAlreadyActiveList(newActiveCellModels, intersectedActiveCellModelsListIndex);
+                }
+            }
+            else
+            {
+                _activeCellModelsManager.CreateNewActiveCellModelList(newActiveCellModels);
+            }
+            _activeCellModelsManager.RemoveActiveCellModelsAtIndex(activeCellModelsListIndex);
         }
         
         private CellModel Fill(CellModel cellModel, int targetRowIndex)

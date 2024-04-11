@@ -6,36 +6,46 @@ namespace Board
 {
     public class ActiveCellModelsManager : IActiveCellModelsManager
     {
-        private List<List<CellModel>> _simultaneousCellModelsList;
+        private List<List<CellModel>> _simultaneouslyActiveCellModelsList;
 
         public ActiveCellModelsManager()
         {
-            _simultaneousCellModelsList = new List<List<CellModel>>();
+            _simultaneouslyActiveCellModelsList = new List<List<CellModel>>();
         }
         
-        public void AddSimultaneousCellModelsToList(List<CellModel> newCellModelList)
+        public void CreateNewActiveCellModelList(List<CellModel> newCellModels)
         {
-            foreach (CellModel newCellModel in newCellModelList)
+            TryToRemoveFromActiveCellModelsList(newCellModels);
+            _simultaneouslyActiveCellModelsList.Add(newCellModels);
+        }
+
+        public void AddActiveCellModelsToAlreadyActiveList(List<CellModel> newCellModels, int activeCellModelsListIndex)
+        {
+            TryToRemoveFromActiveCellModelsList(newCellModels);
+            _simultaneouslyActiveCellModelsList[activeCellModelsListIndex].AddRange(newCellModels);
+        }
+
+        private void TryToRemoveFromActiveCellModelsList(List<CellModel> newCellModels)
+        {
+            foreach (CellModel newCellModel in newCellModels)
             {
                 if (IsCellModelActive(newCellModel.ColumnIndex, newCellModel.RowIndex,
                         out int simultaneousCellModelListIndex))
                 {
-                    CellModel cellModel = _simultaneousCellModelsList[simultaneousCellModelListIndex].FirstOrDefault(cellModel =>
+                    CellModel cellModel = _simultaneouslyActiveCellModelsList[simultaneousCellModelListIndex].FirstOrDefault(cellModel =>
                         cellModel.ColumnIndex == newCellModel.ColumnIndex
                         && cellModel.RowIndex == newCellModel.RowIndex);
-                    _simultaneousCellModelsList[simultaneousCellModelListIndex].Remove(cellModel);
+                    _simultaneouslyActiveCellModelsList[simultaneousCellModelListIndex].Remove(cellModel);
                 }
             }
-
-            _simultaneousCellModelsList.Add(newCellModelList);
         }
         
-        public bool CheckAllActiveCellModelsCompleted(CellModel checkingCellModel, out int simultaneousCellModelListIndex)
+        public bool CheckAllActiveCellModelsCompleted(CellModel checkingCellModel, out int activeCellModelsListIndex)
         {
             if (IsCellModelActive(checkingCellModel.ColumnIndex, checkingCellModel.RowIndex,
-                    out simultaneousCellModelListIndex))
+                    out activeCellModelsListIndex))
             {
-                foreach (CellModel cellModel in _simultaneousCellModelsList[simultaneousCellModelListIndex])
+                foreach (CellModel cellModel in _simultaneouslyActiveCellModelsList[activeCellModelsListIndex])
                 {
                     if (cellModel.HasPlacedDropItem == false) return false;
                 }
@@ -46,39 +56,39 @@ namespace Board
             return false;
         }
 
-        public List<CellModel> GetSimultaneousCellModels(int simultaneousCellModelListIndex)
+        public List<List<CellModel>> GetSimultaneouslyActiveCellModelsList()
         {
-            return _simultaneousCellModelsList[simultaneousCellModelListIndex];
+            return _simultaneouslyActiveCellModelsList;
         }
 
-        public void RemoveSimultaneousCellModelsAtIndex(int simultaneousCellModelListIndex)
+        public void RemoveActiveCellModelsAtIndex(int activeCellModelsListIndex)
         {
-            _simultaneousCellModelsList.RemoveAt(simultaneousCellModelListIndex);
+            _simultaneouslyActiveCellModelsList.RemoveAt(activeCellModelsListIndex);
             TryRemoveEmptyLists();
         }
 
         private void TryRemoveEmptyLists()
         {
-            for (int i = _simultaneousCellModelsList.Count - 1; i >= 0; i--)
+            for (int i = _simultaneouslyActiveCellModelsList.Count - 1; i >= 0; i--)
             {
-                List<CellModel> cellModelList = _simultaneousCellModelsList[i];
+                List<CellModel> cellModelList = _simultaneouslyActiveCellModelsList[i];
                 if (cellModelList.Count == 0)
                 {
-                    _simultaneousCellModelsList.RemoveAt(i);
+                    _simultaneouslyActiveCellModelsList.RemoveAt(i);
                 }
             }
         }
 
-        private bool IsCellModelActive(int columnIndex, int rowIndex, out int simultaneousCellModelListIndex)
+        private bool IsCellModelActive(int columnIndex, int rowIndex, out int activeCellModelsListIndex)
         {
-            simultaneousCellModelListIndex = -1;
-            for (int j = 0; j < _simultaneousCellModelsList.Count; j++)
+            activeCellModelsListIndex = -1;
+            for (int j = 0; j < _simultaneouslyActiveCellModelsList.Count; j++)
             {
-                if (_simultaneousCellModelsList[j].Any(cellModel =>
+                if (_simultaneouslyActiveCellModelsList[j].Any(cellModel =>
                         cellModel.ColumnIndex == columnIndex
                         && cellModel.RowIndex == rowIndex))
                 {
-                    simultaneousCellModelListIndex = j;
+                    activeCellModelsListIndex = j;
                     return true;
                 }
             }
@@ -89,9 +99,10 @@ namespace Board
 
     public interface IActiveCellModelsManager
     {
-        void AddSimultaneousCellModelsToList(List<CellModel> newCellModelList);
+        void CreateNewActiveCellModelList(List<CellModel> newCellModels);
+        void AddActiveCellModelsToAlreadyActiveList(List<CellModel> newCellModels, int activeCellModelsListIndex);
         bool CheckAllActiveCellModelsCompleted(CellModel checkingCellModel, out int simultaneousCellModelListIndex);
-        List<CellModel> GetSimultaneousCellModels(int simultaneousCellModelListIndex);
-        void RemoveSimultaneousCellModelsAtIndex(int simultaneousCellModelListIndex);
+        List<List<CellModel>> GetSimultaneouslyActiveCellModelsList();
+        void RemoveActiveCellModelsAtIndex(int activeCellModelsListIndex);
     }
 }

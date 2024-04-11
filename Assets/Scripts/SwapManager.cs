@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel.Design;
 using UnityEngine;
 
 namespace Board
@@ -54,27 +55,78 @@ namespace Board
             GetTargetCellModel(worldPosition, out int columnIndex, out int rowIndex);
             CellModel secondCellModel = _getCellModel(columnIndex, rowIndex);
             firstCellModel.HasPlacedDropItem = false;
-
+            List<CellModel> activeCellModels = new List<CellModel>();
             if (secondCellModel == null || !secondCellModel.HasPlacedDropItem)
             {
+                activeCellModels.Add(firstCellModel);
+                AddActiveCellModels(activeCellModels, new List<CellModel>());
                 firstCellModel.GetDropItem().AnimateFlick(new Vector2(columnIndex - _dragStartedColumnIndex, rowIndex - _dragStartedRowIndex));
                 return;
             }
             
             secondCellModel.HasPlacedDropItem = false;
-            
-            if (CanSwap(firstCellModel, secondCellModel))
+            activeCellModels.Add(firstCellModel);
+            activeCellModels.Add(secondCellModel);
+            if (CanSwap(firstCellModel, secondCellModel, out List<CellModel> cellModelsToBeMatched))
             {
                 SwapDropItemTypes(firstCellModel, secondCellModel);
-                _activeCellModelsManager.AddSimultaneousCellModelsToList(new List<CellModel>() { firstCellModel, secondCellModel });
+                AddActiveCellModels(activeCellModels, cellModelsToBeMatched);
                 SwapDropItems(firstCellModel, secondCellModel);
             }
 
             else
             {
+                AddActiveCellModels(activeCellModels, new List<CellModel>());
                 firstCellModel.GetDropItem().AnimateSwapAndBack(secondCellModel.Position, true);
                 secondCellModel.GetDropItem().AnimateSwapAndBack(firstCellModel.Position, false);
             }
+        }
+        
+        public bool CheckIfColumnIndicesIntersectWithAnyActiveCellModelList(List<CellModel> activeCellModels, List<CellModel> cellModelsToBeMatched, out int intersectedActiveCellModelsListIndex)
+        {
+            List<int> columnIndices = GetActiveColumnIndices(activeCellModels, cellModelsToBeMatched);
+            intersectedActiveCellModelsListIndex = -1;
+            for (int i = 0; i < _activeCellModelsManager.GetSimultaneouslyActiveCellModelsList().Count; i++)
+            {
+                List<CellModel> cellModelsToBeMatchedOfActiveCellModels = _matchManager.GetMatchedCellModels(_activeCellModelsManager.GetSimultaneouslyActiveCellModelsList()[i]);
+                foreach (CellModel cellModelToBeMatched in cellModelsToBeMatchedOfActiveCellModels)
+                {
+                    if (columnIndices.Contains(cellModelToBeMatched.ColumnIndex))
+                    {
+                        intersectedActiveCellModelsListIndex = i;
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private void AddActiveCellModels(List<CellModel> activeCellModels, List<CellModel> cellModelsToBeMatched)
+        {
+            if (CheckIfColumnIndicesIntersectWithAnyActiveCellModelList(activeCellModels, cellModelsToBeMatched, out int intersectedActiveCellModelsListIndex))
+            {
+                _activeCellModelsManager.AddActiveCellModelsToAlreadyActiveList(activeCellModels, intersectedActiveCellModelsListIndex);
+            }
+            else
+            {
+                _activeCellModelsManager.CreateNewActiveCellModelList(activeCellModels);
+            }
+        }
+        
+        private List<int> GetActiveColumnIndices(List<CellModel> activeCellModels, List<CellModel> cellModelsToBeMatched)
+        {
+            List<int> columnIndices = new List<int>();
+            foreach (CellModel cellModel in activeCellModels)
+            {
+                if(!columnIndices.Contains(cellModel.ColumnIndex)) columnIndices.Add(cellModel.ColumnIndex);
+            }
+            foreach (CellModel cellModel in cellModelsToBeMatched)
+            {
+                if(!columnIndices.Contains(cellModel.ColumnIndex)) columnIndices.Add(cellModel.ColumnIndex);
+            }
+
+            return columnIndices;
         }
         
         private void CalculateIndices(Vector2 worldPosition, out int columnIndex, out int rowIndex)
@@ -119,10 +171,11 @@ namespace Board
             }
         }
         
-        private bool CanSwap(CellModel firstCellModel, CellModel secondCellModel)
+        private bool CanSwap(CellModel firstCellModel, CellModel secondCellModel, out List<CellModel> cellModelsToBeMatched)
         {
             SwapDropItemTypes(firstCellModel, secondCellModel);
-            bool isMatched = _matchManager.GetMatchedCellModels(new List<CellModel> { firstCellModel, secondCellModel }).Count > 0;;
+            cellModelsToBeMatched = _matchManager.GetMatchedCellModels(new List<CellModel> { firstCellModel, secondCellModel });
+            bool isMatched = cellModelsToBeMatched.Count > 0;;
             SwapDropItemTypes(firstCellModel, secondCellModel);
             return isMatched;
         }
@@ -150,5 +203,8 @@ namespace Board
     public interface ISwapManager
     {
         void Init(IMatchManager matchManager, float cellSize, Func<int, int, CellModel> getCellModel);
+
+        bool CheckIfColumnIndicesIntersectWithAnyActiveCellModelList(List<CellModel> activeCellModels,
+            List<CellModel> cellModelsToBeMatched, out int intersectedActiveCellModelsListIndex);
     }
 }
