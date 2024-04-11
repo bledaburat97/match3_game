@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Board
 {
-    public class FillingDropItemDeterminer
+    public class FillingDropItemDeterminer : IFillingDropItemDeterminer
     {
         private int _columnCount;
         private int _rowCount;
@@ -47,5 +47,10 @@ namespace Board
 
             return targetRowIndexOfFillingDropItemsDict;
         }
+    }
+    
+    public interface IFillingDropItemDeterminer
+    {
+        Dictionary<CellModel, int> GetTargetRowIndexOfFillingDropItems(out int[] emptyCellCountInEachColumn);
     }
 }
