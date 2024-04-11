@@ -18,6 +18,7 @@ namespace Board
         private Action<int, int> _onMoveCompleted;
         private IDropItemView _dropItem;
 
+        //CellModel is the instance of one cell on the board.
         public CellModel(int columnIndex, int rowIndex, Vector2 position, Vector2 localScale, Action<int,int> onMoveCompleted)
         {
             _columnIndex = columnIndex;

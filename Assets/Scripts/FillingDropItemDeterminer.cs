@@ -16,6 +16,7 @@ namespace Board
             _getCellModel = getCellModel;
         }
 
+        //Check the empty cell count below for all of the items and set their target row index according to that count.
         public Dictionary<CellModel, int> GetTargetRowIndexOfFillingDropItems(out int[] emptyCellCountInEachColumn)
         {
             Dictionary<CellModel, int> targetRowIndexOfFillingDropItemsDict = new Dictionary<CellModel, int>();

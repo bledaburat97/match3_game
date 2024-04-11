@@ -6,18 +6,19 @@ namespace Board
 {
     public class BoardController : IBoardController
     {
-        private IDropItemDeterminer _dropItemDeterminer;
         private int _columnCount;
         private int _rowCount;
         private float _cellSize;
-        private CellModel[,] _cellModelList;
-        private IBoardView _view;
         private Vector2 _originPosition;
+        private List<int> _nonSpawnableColumnIndices;
+        private IBoardView _view;
+        private IRandomDropItemDeterminer _randomDropItemDeterminer;
         private IMatchManager _matchManager;
         private IFillingDropItemDeterminer _fillingDropItemDeterminer;
         private IActiveCellModelsManager _activeCellModelsManager;
         private ISwapManager _swapManager;
-        private List<int> _nonSpawnableColumnIndices;
+        private CellModel[,] _cellModelList;
+
         public BoardController(IBoardView view, IActiveCellModelsManager activeCellModelsManager, Vector2 originPosition, ISwapManager swapManager, List<int> nonSpawnableColumnIndices)
         {
             _view = view;
@@ -29,7 +30,7 @@ namespace Board
         
         public void InitializeBoard(int columnCount, int rowCount)
         {
-            _dropItemDeterminer = new DropItemDeterminer();
+            _randomDropItemDeterminer = new RandomDropItemDeterminer();
             _columnCount = columnCount;
             _rowCount = rowCount;
             _cellModelList = new CellModel[_columnCount, _rowCount];
@@ -39,6 +40,7 @@ namespace Board
             SetCamera();
             _matchManager = new MatchManager(_columnCount, _rowCount, GetCellModel);
             _fillingDropItemDeterminer = new FillingDropItemDeterminer(_columnCount, _rowCount, GetCellModel);
+            
             _swapManager.Init(_matchManager, _cellSize, GetCellModel);
         }
 
@@ -48,10 +50,11 @@ namespace Board
             _view.SetCameraPosition(cameraPosition);
         }
 
+        //Create cells and their initial images.
         private void SetCellModelList()
         {
             _view.CreateDropItemPool(_columnCount * _rowCount);
-            DropItemType[,] initialDropItemTypeList = _dropItemDeterminer.GetInitialDropItemTypes(_columnCount, _rowCount);
+            DropItemType[,] initialDropItemTypeList = _randomDropItemDeterminer.GetInitialDropItemTypes(_columnCount, _rowCount);
             Vector2 sizeOfSprite = _view.GetOriginalSizeOfSprites();
             Vector2 localScaleOfDropItem = new Vector2(1 / sizeOfSprite.x, 1 / sizeOfSprite.y) * _cellSize;
             for (int i = 0; i < _columnCount; i++)
@@ -72,6 +75,78 @@ namespace Board
             }
         }
         
+        //When an item completes its move
+        private void OnMoveCompleted(int columnIndex, int rowIndex)
+        {
+            CellModel cellModel = GetCellModel(columnIndex, rowIndex);
+            cellModel.HasPlacedDropItem = true;
+            //check other items which are moving simultaneously with the item completes their moves.
+            if (_activeCellModelsManager.CheckAllActiveCellModelsCompleted(cellModel, out int activeCellModelsListIndex))
+            {
+                ExplodeBoard(activeCellModelsListIndex);
+            }
+        }
+
+        //search a match for each item which completed its move
+        private void ExplodeBoard(int activeCellModelsListIndex)
+        {
+            List<CellModel> matchedCellModelList = _matchManager.GetMatchedCellModels(_activeCellModelsManager.GetSimultaneouslyActiveCellModelsList()[activeCellModelsListIndex]);
+            Sequence explosionSequence = DOTween.Sequence();
+            //if there is a match explode the items. 
+            foreach (CellModel matchedCellModel in matchedCellModelList)
+            {
+                explosionSequence.Join(ExplodeDropItem(matchedCellModel));
+            }
+
+            //After the explosion fill the empty cells on the board.
+            explosionSequence.OnComplete(() => FillBoard(activeCellModelsListIndex)).Play();
+        }
+
+        private void FillBoard(int activeCellModelsListIndex)
+        {
+            //newActiveCellModels is a list of new active moving items after the explosion.
+            List<CellModel> newActiveCellModels = new List<CellModel>();
+
+            //get target row index of cell models which were on the board during the explosion and are filling the empty cells
+            Dictionary<CellModel, int> targetRowIndexOfFillingDropItems =
+                _fillingDropItemDeterminer.GetTargetRowIndexOfFillingDropItems(
+                    out int[] emptyCellCountInEachColumn);
+
+            foreach (KeyValuePair<CellModel, int> pair in targetRowIndexOfFillingDropItems)
+            {
+                CellModel cellModelToBeFilled = SetNewDropItemOfEmptyCell(pair.Key, pair.Value);
+                newActiveCellModels.Add(cellModelToBeFilled); //the cell models are added to list of active moving items.
+            }
+
+            //the cell models whose drop items are spawned are added to list of active moving items.
+            newActiveCellModels.AddRange(GetCellModelsOfDropItemsToBeFell(emptyCellCountInEachColumn)); 
+            
+            //cellModelsToBeMatched refers to cell models which will explode when the new active moving item list completed their moves.
+            List<CellModel> cellModelsToBeMatched = _matchManager.GetMatchedCellModels(newActiveCellModels);
+            
+            //check new active moving item list has same cell model with an already declared active moving item list.
+            if (_swapManager.CheckIfColumnIndicesIntersectWithAnyActiveCellModelList(newActiveCellModels, cellModelsToBeMatched, out int intersectedActiveCellModelsListIndex))
+            {
+                //if intersected active cell model list is the list the one whose items completed their moves. 
+                if (intersectedActiveCellModelsListIndex == activeCellModelsListIndex)
+                {
+                    _activeCellModelsManager.CreateNewActiveCellModelList(newActiveCellModels);
+                }
+                else
+                {
+                    _activeCellModelsManager.AddActiveCellModelsToAlreadyActiveList(newActiveCellModels, intersectedActiveCellModelsListIndex);
+                }
+            }
+            else
+            {
+                _activeCellModelsManager.CreateNewActiveCellModelList(newActiveCellModels);
+            }
+            
+            //Remove the list whose items completed their moves. 
+            _activeCellModelsManager.RemoveActiveCellModelsAtIndex(activeCellModelsListIndex);
+        }
+        
+        //Explode drop item
         private Sequence ExplodeDropItem(CellModel cellModel)
         {
             IDropItemView dropItem = cellModel.GetDropItem();
@@ -82,46 +157,14 @@ namespace Board
                 _view.ReturnDropItemToPool(dropItem);
             }).Pause();
         }
-        
-        private void OnMoveCompleted(int columnIndex, int rowIndex)
+
+        private List<CellModel> GetCellModelsOfDropItemsToBeFell(int[] emptyCellCountInEachColumn)
         {
-            CellModel cellModel = GetCellModel(columnIndex, rowIndex);
-            cellModel.HasPlacedDropItem = true;
-            if (_activeCellModelsManager.CheckAllActiveCellModelsCompleted(cellModel, out int activeCellModelsListIndex))
-            {
-                ExplodeBoard(activeCellModelsListIndex);
-            }
-        }
-
-        private void ExplodeBoard(int activeCellModelsListIndex)
-        {
-            List<CellModel> matchedCellModelList = _matchManager.GetMatchedCellModels(_activeCellModelsManager.GetSimultaneouslyActiveCellModelsList()[activeCellModelsListIndex]);
-            Sequence explosionSequence = DOTween.Sequence();
-            foreach (CellModel matchedCellModel in matchedCellModelList)
-            {
-                explosionSequence.Join(ExplodeDropItem(matchedCellModel));
-            }
-
-            explosionSequence.OnComplete(() => FillBoard(activeCellModelsListIndex)).Play();
-        }
-
-        private void FillBoard(int activeCellModelsListIndex)
-        {
-            List<CellModel> newActiveCellModels = new List<CellModel>();
-
-            Dictionary<CellModel, int> targetRowIndexOfFillingDropItems =
-                _fillingDropItemDeterminer.GetTargetRowIndexOfFillingDropItems(
-                    out int[] emptyCellCountInEachColumn);
-
-            foreach (KeyValuePair<CellModel, int> pair in targetRowIndexOfFillingDropItems)
-            {
-                CellModel cellModelToBeFilled = Fill(pair.Key, pair.Value);
-                newActiveCellModels.Add(cellModelToBeFilled);
-            }
-
+            List<CellModel> cellModelsToBeFell = new List<CellModel>();
             for (int i = 0; i < _columnCount; i++)
             {
                 if (_nonSpawnableColumnIndices.Contains(i)) continue;
+                
                 for (int j = 0; j < emptyCellCountInEachColumn[i]; j++)
                 {
                     int columnIndexOfSpawned = i;
@@ -137,42 +180,20 @@ namespace Board
                         }
                     }
 
-                    CellModel cellModelToBeFell = SpawnNewDropItem(i, rowIndexOfSpawned,
+                    CellModel cellModelToBeFell = SpawnNewDropItemForEmptyCell(i, rowIndexOfSpawned,
                         initialVerticalPosition);
-                    newActiveCellModels.Add(cellModelToBeFell);
+                    cellModelsToBeFell.Add(cellModelToBeFell);
                 }
             }
-            List<CellModel> cellModelsToBeMatched = _matchManager.GetMatchedCellModels(newActiveCellModels);
-            if (_swapManager.CheckIfColumnIndicesIntersectWithAnyActiveCellModelList(newActiveCellModels, cellModelsToBeMatched, out int intersectedActiveCellModelsListIndex))
-            {
-                if (intersectedActiveCellModelsListIndex == activeCellModelsListIndex)
-                {
-                    _activeCellModelsManager.CreateNewActiveCellModelList(newActiveCellModels);
-                }
-                else
-                {
-                    _activeCellModelsManager.AddActiveCellModelsToAlreadyActiveList(newActiveCellModels, intersectedActiveCellModelsListIndex);
-                }
-            }
-            else
-            {
-                _activeCellModelsManager.CreateNewActiveCellModelList(newActiveCellModels);
-            }
-            _activeCellModelsManager.RemoveActiveCellModelsAtIndex(activeCellModelsListIndex);
+
+            return cellModelsToBeFell;
         }
         
-        private CellModel Fill(CellModel cellModel, int targetRowIndex)
+        private CellModel SetNewDropItemOfEmptyCell(CellModel cellModel, int targetRowIndex)
         {
             CellModel newCellModel = GetCellModel(cellModel.ColumnIndex, targetRowIndex);
-            if (!cellModel.HasAssignedDropItem())
-            {
-                Debug.LogError("There is not filling object in the cell");
-            }
-            
-            if (newCellModel.HasAssignedDropItem())
-            {
-                Debug.LogError("Target cell is not empty.");
-            }
+            if (!cellModel.HasAssignedDropItem()) Debug.LogError("There is not filling object in the cell");
+            if (newCellModel.HasAssignedDropItem()) Debug.LogError("Target cell is not empty.");
             
             DropItemType dropItemType = cellModel.DropItemType;
             newCellModel.DropItemType = dropItemType;
@@ -184,14 +205,11 @@ namespace Board
             return newCellModel;
         }
 
-        private CellModel SpawnNewDropItem(int columnIndex, int rowIndex, float initialVerticalPosition)
+        private CellModel SpawnNewDropItemForEmptyCell(int columnIndex, int rowIndex, float initialVerticalPosition)
         {
             CellModel cellModel = GetCellModel(columnIndex, rowIndex);
-            if (cellModel.HasAssignedDropItem())
-            {
-                Debug.LogError("Target cell has drop item view.");
-            }
-            cellModel.DropItemType = _dropItemDeterminer.GenerateRandomDropItemType();
+            if (cellModel.HasAssignedDropItem()) Debug.LogError("Target cell has drop item view.");
+            cellModel.DropItemType = _randomDropItemDeterminer.GenerateRandomDropItemType();
             Vector2 initialPosition = new Vector2(cellModel.Position.x, initialVerticalPosition);
             IDropItemView dropItem = _view.GetDropItemFromPool();
             dropItem.SetPosition(initialPosition);
@@ -200,8 +218,6 @@ namespace Board
             dropItem.UpdateTargetVerticalPosition(cellModel.Position);
             return cellModel;
         }
-
-
         
         private CellModel GetCellModel(int columnIndex, int rowIndex)
         {

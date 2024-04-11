@@ -4,9 +4,10 @@ namespace Board
 {
     public class BoardSizeCalculator
     {
-        private float _maxBoardHeightToScreenHeightRatio = 0.6f;
+        private float _maxBoardHeightToScreenHeightRatio = 0.7f;
         private float _maxBoardWidthToScreenWidthRatio = 0.9f;
         
+        //Set the board size according to screen size and constant boundaries.
         public Vector2 GetBoardSize(int columnCount, int rowCount, Camera camera)
         {
             float screenHeight = camera.orthographicSize * 2.0f;

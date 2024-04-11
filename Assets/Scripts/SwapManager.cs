@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel.Design;
 using UnityEngine;
 
 namespace Board
@@ -24,7 +23,6 @@ namespace Board
             _boardView = boardView;
             _activeCellModelsManager = activeCellModelsManager;
             _originPosition = originPosition;
-
         }
 
         public void Init(IMatchManager matchManager, float cellSize, Func<int, int, CellModel> getCellModel)
@@ -35,6 +33,7 @@ namespace Board
             SubscribeEvents();
         }
 
+        //Listens the clicks and releases.
         private void SubscribeEvents()
         {
             _boardView.OnDragStartedEvent += OnDragStarted;
@@ -47,18 +46,28 @@ namespace Board
             _dragStartedPosition = worldPosition;
         }
         
+        //When dragging is completed.
         private void OnDragEnded(object sender, Vector2 worldPosition)
         {
+            //Check the first cell model.
             CellModel firstCellModel = _getCellModel(_dragStartedColumnIndex, _dragStartedRowIndex);
             if (firstCellModel == null || !firstCellModel.HasPlacedDropItem) return;
+            
+            //Check dragging is completed on the initial cell or not
             if (!IsWorldPositionOutsideTheInitialCell(worldPosition)) return;
+            
+            //Get the target swapping cell.
             GetTargetCellModel(worldPosition, out int columnIndex, out int rowIndex);
             CellModel secondCellModel = _getCellModel(columnIndex, rowIndex);
+            
             firstCellModel.HasPlacedDropItem = false;
             List<CellModel> activeCellModels = new List<CellModel>();
+            
+            //if there is not a target swapping cell, flick the first cell.
             if (secondCellModel == null || !secondCellModel.HasPlacedDropItem)
             {
                 activeCellModels.Add(firstCellModel);
+                //add the flick item as a active moving item
                 AddActiveCellModels(activeCellModels, new List<CellModel>());
                 firstCellModel.GetDropItem().AnimateFlick(new Vector2(columnIndex - _dragStartedColumnIndex, rowIndex - _dragStartedRowIndex));
                 return;
@@ -67,6 +76,8 @@ namespace Board
             secondCellModel.HasPlacedDropItem = false;
             activeCellModels.Add(firstCellModel);
             activeCellModels.Add(secondCellModel);
+            
+            //Check if there can be a swap between two cells or not.
             if (CanSwap(firstCellModel, secondCellModel, out List<CellModel> cellModelsToBeMatched))
             {
                 SwapDropItemTypes(firstCellModel, secondCellModel);
@@ -82,6 +93,8 @@ namespace Board
             }
         }
         
+        //Check if there is an active moving cell model list and their probable match  cell model list which moves on the same column
+        //with this new active cell models and their probable match cell model list.
         public bool CheckIfColumnIndicesIntersectWithAnyActiveCellModelList(List<CellModel> activeCellModels, List<CellModel> cellModelsToBeMatched, out int intersectedActiveCellModelsListIndex)
         {
             List<int> columnIndices = GetActiveColumnIndices(activeCellModels, cellModelsToBeMatched);
@@ -106,10 +119,12 @@ namespace Board
         {
             if (CheckIfColumnIndicesIntersectWithAnyActiveCellModelList(activeCellModels, cellModelsToBeMatched, out int intersectedActiveCellModelsListIndex))
             {
+                //add the new active cell models to already existed active cell model list.
                 _activeCellModelsManager.AddActiveCellModelsToAlreadyActiveList(activeCellModels, intersectedActiveCellModelsListIndex);
             }
             else
             {
+                //create new active moving cell model list.
                 _activeCellModelsManager.CreateNewActiveCellModelList(activeCellModels);
             }
         }
@@ -203,7 +218,6 @@ namespace Board
     public interface ISwapManager
     {
         void Init(IMatchManager matchManager, float cellSize, Func<int, int, CellModel> getCellModel);
-
         bool CheckIfColumnIndicesIntersectWithAnyActiveCellModelList(List<CellModel> activeCellModels,
             List<CellModel> cellModelsToBeMatched, out int intersectedActiveCellModelsListIndex);
     }

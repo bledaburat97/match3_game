@@ -6,16 +6,12 @@ namespace Board
 {
     public class MatchManager : IMatchManager
     {
-        private int _columnCount = 8;
-        private int _rowCount = 8;
         private Func<int, int, CellModel> _getCellModel;
         private Dictionary<CellModel, int> _matchedCellModelAndMatchIndexDict;
         private int _matchCount;
         
         public MatchManager(int columnCount, int rowCount, Func<int, int, CellModel> getCellModel)
         {
-            _columnCount = columnCount;
-            _rowCount = rowCount;
             _getCellModel = getCellModel;
             ResetMatchedCellModels();
         }
@@ -26,14 +22,17 @@ namespace Board
             _matchCount = 0;
         }
 
+        //Sets all different matches in a dictionary, and returns them in a merged list.
+        //All different matches are stored separately because in future, there can be need for element count of each match.
         public List<CellModel> GetMatchedCellModels(List<CellModel> cellModelsToBeChecked)
         {
             ResetMatchedCellModels();
+            //At first check vertical matches for all cell models to be checked.
             foreach (CellModel cellModel in cellModelsToBeChecked)
             {
                 SetVerticalMatch(cellModel);
             }
-
+            //Then check horizontal matches for all cell models and remove intersections.
             foreach (CellModel cellModel in cellModelsToBeChecked)
             {
                 SetHorizontalMatch(cellModel);
@@ -42,8 +41,10 @@ namespace Board
             return _matchedCellModelAndMatchIndexDict.Keys.ToList();
         }
         
+        //check a match for a cell model in vertical line and if there is a match, add the cell model.
         private void SetVerticalMatch(CellModel cellModel)
         {
+            //if it is already on the list, its probable match must have been added to the list.
             if (_matchedCellModelAndMatchIndexDict.ContainsKey(cellModel)) return;
 
             int downLinkAmount = GetLinkAmount(cellModel.ColumnIndex, cellModel.RowIndex, 0, -1, cellModel.DropItemType);
@@ -72,6 +73,8 @@ namespace Board
             {
                 int leftMostColumnIndex = cellModel.ColumnIndex - leftLinkAmount;
                 List<int> intersectedMatchIndexes = new List<int>();
+                
+                //if this link has common cell models with any stored matches, hold these match indexes.
                 for (int i = 0; i < horizontalLinkAmount; i++)
                 {
                     if (_matchedCellModelAndMatchIndexDict.TryGetValue(
@@ -82,6 +85,10 @@ namespace Board
                 }
 
                 int matchIndex = _matchCount;
+                
+                //if there are matches which have common cell models with this link,
+                //set match indexes of all of the cell models in those matches as the first intersected match index.
+                //so, these matches becomes merged.
                 if (intersectedMatchIndexes.Count > 0)
                 {
                     matchIndex = intersectedMatchIndexes[0];
@@ -91,6 +98,7 @@ namespace Board
                     }
                 }
                 
+                //Add the non intersected cell models of the link to the match list.
                 for (int i = 0; i < horizontalLinkAmount; i++)
                 {
                     if (!_matchedCellModelAndMatchIndexDict.ContainsKey(_getCellModel(leftMostColumnIndex + i, cellModel.RowIndex)))
@@ -128,7 +136,7 @@ namespace Board
             int currentColumn = columnIndex + columnStep;
             int currentRow = rowIndex + rowStep;
 
-            while (IsValidPosition(currentColumn, currentRow) &&
+            while (_getCellModel(currentColumn, currentRow) != null &&
                    _getCellModel(currentColumn, currentRow).HasPlacedDropItem &&
                    _getCellModel(currentColumn, currentRow).DropItemType == dropItemType)
             {
@@ -138,13 +146,6 @@ namespace Board
             }
 
             return linkAmount;
-        }
-        
-        private bool IsValidPosition(int columnIndex, int rowIndex) {
-            if (columnIndex < 0 || rowIndex < 0 || columnIndex >= _columnCount || rowIndex >= _rowCount) {
-                return false;
-            } 
-            return true;
         }
     }
 

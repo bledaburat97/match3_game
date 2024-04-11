@@ -1,6 +1,5 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
-using UnityEngine;
 
 namespace Board
 {
@@ -13,12 +12,14 @@ namespace Board
             _simultaneouslyActiveCellModelsList = new List<List<CellModel>>();
         }
         
+        //Create and add new active moving cell model list.
         public void CreateNewActiveCellModelList(List<CellModel> newCellModels)
         {
             TryToRemoveFromActiveCellModelsList(newCellModels);
             _simultaneouslyActiveCellModelsList.Add(newCellModels);
         }
 
+        //Add new active moving cell model list to the list which has common cell model. 
         public void AddActiveCellModelsToAlreadyActiveList(List<CellModel> newCellModels, int activeCellModelsListIndex)
         {
             TryToRemoveFromActiveCellModelsList(newCellModels);
@@ -40,6 +41,8 @@ namespace Board
             }
         }
         
+        //When the item's move completed, its cell model's hasPlacedDropItem parameter becomes true,
+        //thus we can check that parameter to understand that is there an active movement or not.
         public bool CheckAllActiveCellModelsCompleted(CellModel checkingCellModel, out int activeCellModelsListIndex)
         {
             if (IsCellModelActive(checkingCellModel.ColumnIndex, checkingCellModel.RowIndex,

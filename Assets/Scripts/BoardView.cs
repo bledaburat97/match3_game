@@ -11,7 +11,7 @@ namespace Board
         [SerializeField] private Transform tilePrefab;
         [SerializeField] private DropItemView dropItemPrefab;
         
-        private Queue<IDropItemView> _pooledDropItems = new Queue<IDropItemView>();
+        private Queue<IDropItemView> _pooledDropItems;
         private Dictionary<DropItemType, Sprite> _dropItemTypeToSpriteDict;
         public event EventHandler<Vector2> OnDragStartedEvent;
         public event EventHandler<Vector2> OnDragEndedEvent;
@@ -23,10 +23,12 @@ namespace Board
             {
                 _dropItemTypeToSpriteDict.Add(dropItemSO.dropItemType, dropItemSO.sprite);
             }
+            _pooledDropItems = new Queue<IDropItemView>();
         }
 
         private void Update()
         {
+            //When the screen is clicked and released, an event which holds the world position is triggered.
             if (Input.GetMouseButtonDown(0))
             {
                 Vector3 worldPosition = mainCamera.ScreenToWorldPoint(Input.mousePosition);
@@ -60,7 +62,7 @@ namespace Board
             }
             else
             {
-                Debug.LogWarning("No objects left in pool.");
+                Debug.LogError("There is no drop item left in pool.");
                 return null;
             }
         }

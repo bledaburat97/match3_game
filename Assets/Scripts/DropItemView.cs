@@ -7,25 +7,31 @@ namespace Board
     public class DropItemView : MonoBehaviour, IDropItemView
     {
         [SerializeField] private SpriteRenderer spriteRenderer;
-        private Vector2 _targetPosition;
-        private bool _isMoving = false;
-        private bool _hasActiveAnimation = false;
-        private const float _gravity = 100f;
-        private Action _onMoveCompleted;
-        private float _startTime;
         private const float _explosionDuration = 0.1f;
         private const float _swappingDuration = 0.3f;
         private const float _maxScaleRatioDuringSwapping = 1.5f;
         private const float _flickDuration = 0.3f;
         private const float _flickMovementRatio = 0.3f;
+        private const float _gravity = 100f;
+
+        private Vector2 _targetPosition;
+        private bool _isMoving;
+        private bool _hasActiveAnimation;
+        private Action _onMoveCompleted;
+        private float _startTime;
+
         
         void Start()
         {
             _targetPosition = transform.position;
+            _isMoving = false;
+            _hasActiveAnimation = false;
         }
 
         void Update()
         {
+            //If target vertical position is changed and there is not any active animation on it,
+            //it accelerates in time and when the movement is completed, the complete action gets invoked.
             if (!_hasActiveAnimation && _isMoving)
             {
                 Vector2 moveDirection = _targetPosition - (Vector2)transform.position;
@@ -50,31 +56,6 @@ namespace Board
             _targetPosition = targetPosition;
             _isMoving = true;
             _startTime = Time.time;
-        }
-
-        public void AnimateSwap(Vector2 targetPosition, bool isDragged)
-        {
-            DOTween.Sequence().OnStart(() => SetAnimationStatus(true)).Append(Swap(targetPosition, isDragged))
-                .OnComplete(CompleteAnimation);
-        }
-
-        public void AnimateSwapAndBack(Vector2 targetPosition, bool isDragged)
-        {
-            Vector2 position = transform.position;
-            DOTween.Sequence().OnStart(() => SetAnimationStatus(true)).Append(Swap(targetPosition, isDragged)).Append(Swap(position, !isDragged))
-                .OnComplete(CompleteAnimation);
-        }
-        
-        private Sequence Swap(Vector2 targetPosition, bool isDragged)
-        {
-            Vector2 localScale = transform.localScale;
-            Vector2 maxLocalScale = isDragged ? localScale * _maxScaleRatioDuringSwapping : localScale;
-            
-            return DOTween.Sequence().AppendCallback(() => spriteRenderer.sortingOrder = isDragged ? 2 : 1)
-                .Append(transform.DOMove(targetPosition, _swappingDuration))
-                .Join(DOTween.Sequence().Append(transform.DOScale(maxLocalScale, _swappingDuration / 2))
-                    .Append(transform.DOScale(localScale, _swappingDuration / 2)))
-                .OnComplete(() => spriteRenderer.sortingOrder = 1);
         }
         
         public void SetActive(bool status)
@@ -108,6 +89,31 @@ namespace Board
             return transform.position;
         }
 
+        public void AnimateSwap(Vector2 targetPosition, bool isDragged)
+        {
+            DOTween.Sequence().OnStart(() => SetAnimationStatus(true)).Append(Swap(targetPosition, isDragged))
+                .OnComplete(CompleteAnimation);
+        }
+
+        public void AnimateSwapAndBack(Vector2 targetPosition, bool isDragged)
+        {
+            Vector2 position = transform.position;
+            DOTween.Sequence().OnStart(() => SetAnimationStatus(true)).Append(Swap(targetPosition, isDragged)).Append(Swap(position, !isDragged))
+                .OnComplete(CompleteAnimation);
+        }
+        
+        private Sequence Swap(Vector2 targetPosition, bool isDragged)
+        {
+            Vector2 localScale = transform.localScale;
+            Vector2 maxLocalScale = isDragged ? localScale * _maxScaleRatioDuringSwapping : localScale;
+            
+            return DOTween.Sequence().AppendCallback(() => spriteRenderer.sortingOrder = isDragged ? 2 : 1)
+                .Append(transform.DOMove(targetPosition, _swappingDuration))
+                .Join(DOTween.Sequence().Append(transform.DOScale(maxLocalScale, _swappingDuration / 2))
+                    .Append(transform.DOScale(localScale, _swappingDuration / 2)))
+                .OnComplete(() => spriteRenderer.sortingOrder = 1);
+        }
+        
         public Sequence AnimateExplosion()
         {
             return DOTween.Sequence().Append(transform.DOScale(0f, _explosionDuration));
